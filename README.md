@@ -1,5 +1,13 @@
 # Personal Thought Graph
 
+#frontend
+npm run dev
+
+#backend
+python -m venv venv
+venv/scripts/activate.ps1
+pip install -r requirements.txt
+
 ## Project Overview
 
 **Personal Thought Graph** is a web-based platform that transforms user-entered text into a dynamic knowledge graph. It leverages a locally running, open-source LLM to extract summaries, entities (nodes), and relationships (edges) from text. Users can choose to either create a brand-new graph or add to an existing one. The system then visualizes the evolving network of ideas in an interactive UI.
