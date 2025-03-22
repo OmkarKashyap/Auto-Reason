@@ -3,19 +3,61 @@ import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-
+import { getAuth, signInWithEmailAndPassword } from 'firebase/auth';
+import { app } from '../config/firebaseConfig';
 interface SignInProps {
   // Add any props if needed
 }
 
 const SignIn: React.FC<SignInProps> = () => {
-  const [showPassword, setShowPassword] = useState(false);
-  const router = useRouter();
+    const [showPassword, setShowPassword] = useState(false);
+    const router = useRouter();
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [error, setError] = useState<string | null>(null);
+    const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setError(null);
+        setSuccessMessage(null);
+    
+        try {
+          const auth = getAuth(app);
+          const userCredential = await signInWithEmailAndPassword(auth, email, password);
+          const user = userCredential.user;
+          console.log('Firebase Sign In successful:', user);
+          const idToken = await user.getIdToken();
+          
+          const response = await fetch('http://localhost:8000/api/signin', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${idToken}`,
+            },
+            body: JSON.stringify({}),
+          });
+    
+          const data = await response.json();
+    
+          if (response.ok) {
+            console.log('Backend Sign In successful:', data);
+            setSuccessMessage('Sign in successful!');
+            router.push('/dashboard');
+          } else {
+            console.error('Backend Sign In failed:', data);
+            setError(data.detail || 'An error occurred');
+          }
+    
+        } catch (firebaseError: any) {
+          console.error('Firebase Sign In failed:', firebaseError);
+          setError(firebaseError.message || 'An error occurred during Firebase sign in.');
+        }
+      };
 
   return (
     <div className="mt-18 min-h-screen flex items-center justify-center bg-[#1C1C1C]">
       <div className="w-full max-w-md p-6 space-y-6 bg-[#232323] rounded-lg shadow-xl">
-        {/* Header */}
         <div className="text-center space-y-2">
           <h2 className="text-3xl font-semibold text-white">
             Sign in
@@ -25,27 +67,32 @@ const SignIn: React.FC<SignInProps> = () => {
           </p>
         </div>
 
-        {/* Form */}
-        <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
-          {/* Email Field */}
+        <form className="space-y-4" onSubmit={handleSubmit}>
+        {error && <div className="text-red-500 text-sm">{error}</div>}
+        {successMessage && <div className="text-green-500 text-sm">{successMessage}</div>}
           <div className="space-y-1">
             <label htmlFor="email" className="block text-sm font-medium text-gray-300">Email</label>
             <input
               type="email"
               id="email"
-              className="w-full px-4 py-2 bg-[#2C2C2C] rounded-md border border-gray-600 text-white focus:outline-none focus:border-[#99FF00] transition-colors"
+              className="w-full px-3 py-2 bg-[#2C2C2C] rounded-md border border-gray-600 text-white focus:outline-none focus:border-[#99FF00] transition-colors text-sm"
+              placeholder="Your Email Address"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               required
             />
           </div>
 
-          {/* Password Field */}
           <div className="space-y-1">
             <label htmlFor="password" className="block text-sm font-medium text-gray-300">Password</label>
             <div className="relative">
               <input
                 type={showPassword ? "text" : "password"}
                 id="password"
-                className="w-full px-4 py-2 bg-[#2C2C2C] rounded-md border border-gray-600 text-white focus:outline-none focus:border-[#99FF00] transition-colors"
+                className="w-full px-3 py-2 bg-[#2C2C2C] rounded-md border border-gray-600 text-white focus:outline-none focus:border-[#99FF00] transition-colors text-sm"
+                placeholder="Your Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 required
               />
               <button
@@ -62,7 +109,6 @@ const SignIn: React.FC<SignInProps> = () => {
             </div>
           </div>
 
-          {/* Forgot Password Link */}
           <div className="text-right">
             <Link
               href="/forgot-password"
@@ -72,7 +118,6 @@ const SignIn: React.FC<SignInProps> = () => {
             </Link>
           </div>
 
-          {/* Sign In Button */}
           <button
             type="submit"
             className="w-full bg-[#99FF00] hover:brightness-110 text-black font-semibold py-2.5 rounded-md transition-all"
@@ -81,7 +126,6 @@ const SignIn: React.FC<SignInProps> = () => {
           </button>
         </form>
 
-        {/* Divider */}
         <div className="relative py-4">
           <div className="absolute inset-0 flex items-center">
             <div className="w-full border-t border-gray-600"></div>
@@ -91,7 +135,6 @@ const SignIn: React.FC<SignInProps> = () => {
           </div>
         </div>
 
-        {/* OAuth Buttons */}
         <div className="space-y-2">
           <button
             type="button"
@@ -126,7 +169,6 @@ const SignIn: React.FC<SignInProps> = () => {
   );
 }
 
-// Eye Icons
 const EyeIcon = ({ className }: { className?: string }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
