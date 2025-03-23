@@ -2,3 +2,5 @@ fastapi
 uvicorn
 transformers
 neo4j
+firebase-admin
+fastapi[all]

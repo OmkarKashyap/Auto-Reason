@@ -9,15 +9,43 @@ interface SignUpProps {
 }
 
 const SignUp: React.FC<SignUpProps> = () => {
-  const [showPassword, setShowPassword] = useState(false);
-  const router = useRouter();
-  const [fullName, setFullName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+    const [showPassword, setShowPassword] = useState(false);
+    const router = useRouter();
+    const [fullName, setFullName] = useState('');
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [error, setError] = useState<string | null>(null);
+    const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Sign Up submitted:', { fullName, email, password });
+    setError(null);
+    setSuccessMessage(null);
+
+    try{
+        const response = await fetch('http://localhost:8000/api/register', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ fullName, email, password }),
+        })    
+
+        const data = await response.json();
+
+        if(response.ok){
+          console.log('Sign Up successful:', data);
+          setSuccessMessage('Account created successfully!');
+          router.push('/signin');
+        } else {
+          console.error('Sign Up failed:', data);
+          setError(data.message || 'An error occurred');
+        }
+    } catch (error) {
+      console.error('Error:', error);
+      setError('An error occurred');
+    }
+
   };
 
   return (
@@ -101,7 +129,6 @@ const SignUp: React.FC<SignUpProps> = () => {
                 </div> */}
               {/* </div> */}
             {/* </div> */}
-
             <button
               type="submit"
               className="w-full bg-[#99FF00] hover:brightness-110 text-black font-semibold py-2.5 rounded-md transition-all text-sm"
