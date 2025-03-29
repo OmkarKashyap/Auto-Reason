@@ -9,6 +9,15 @@ venv/scripts/activate.ps1
 pip install -r requirements.txt
 python app/main.py
 
+#env
+cd backend
+touch admin-sdk-1.json
+Paste the admin-sdk from the firebase website
+
+cd frontend
+touch .env.local
+paste the NEXT_PUBLIC_FIREBASE_API_KEY, NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN, NEXT_PUBLIC_FIREBASE_PROJECT_ID, NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET, NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID, NEXT_PUBLIC_FIREBASE_APP_ID, NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
+
 ## Project Overview
 
 **Personal Thought Graph** is a web-based platform that transforms user-entered text into a dynamic knowledge graph. It leverages a locally running, open-source LLM to extract summaries, entities (nodes), and relationships (edges) from text. Users can choose to either create a brand-new graph or add to an existing one. The system then visualizes the evolving network of ideas in an interactive UI.

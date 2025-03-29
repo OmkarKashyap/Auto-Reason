@@ -4,6 +4,7 @@ import firebase_admin
 from firebase_admin import auth
 from firebase_admin import firestore  
 from firebase_admin import auth as firebase_auth
+from firebase_admin import exceptions 
 from core.config import get_firebase_app
 
 router = APIRouter(tags=["Authentication"])
@@ -18,13 +19,16 @@ class SignInRequest(BaseModel):
     password: str
 
 @router.post("/register")
-async def register_user(request: SignUpRequest):
-    db = firestore.client() if firebase_admin._apps else None
+async def register_user(request: SignUpRequest, firebase_app=Depends(get_firebase_app)):
+    
+    db = firestore.client(app=firebase_app)
+    
     try:
         user = auth.create_user(
             email=request.email,
             password=request.password,
             display_name=request.fullName,
+            app=firebase_app
         )
         print(f"Successfully created new user: {user.uid}")
 
@@ -58,14 +62,13 @@ async def register_user(request: SignUpRequest):
 
 @router.post("/signin")
 async def signin_user(authorization: str = Header(None), firebase_app=Depends(get_firebase_app)):
-    print('hi')
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authorization header with Bearer token is required",
         )
     id_token = authorization.split(" ")[1]
-    print('hi')
+
     try:
         decoded_token = firebase_auth.verify_id_token(id_token, app=firebase_app)
         uid = decoded_token.get("uid")

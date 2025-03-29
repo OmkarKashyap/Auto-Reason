@@ -6,11 +6,11 @@ from firebase_admin import credentials
 from core.config import initialize_firebase_admin
 from api.endpoints import auth
 
-try:
-    cred = credentials.Certificate("backend/admin-sdk.json")
-    firebase_admin.initialize_app(cred)
-except Exception as e:
-    print(f"Error initializing Firebase: {e}")
+# try:
+#     cred = credentials.Certificate("backend\\admin-sdk-1.json")
+#     firebase_admin.initialize_app(cred)
+# except Exception as e:
+#     print(f"Error initializing Firebase: {e}")
 
 app = FastAPI()
 

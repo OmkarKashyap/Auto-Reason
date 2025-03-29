@@ -22,6 +22,11 @@ const SignUp: React.FC<SignUpProps> = () => {
     setError(null);
     setSuccessMessage(null);
 
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters long.');
+      return;
+  }
+
     try{
         const response = await fetch('http://localhost:8000/api/register', {
           method: 'POST',
@@ -52,16 +57,16 @@ const SignUp: React.FC<SignUpProps> = () => {
     <div className="mt-4 min-h-screen flex items-center justify-center bg-[#1C1C1C]">
       <div className="w-full max-w-4xl bg-[#232323] rounded-lg shadow-xl flex overflow-hidden">
 
-        <div className="md:w-1/2 p-8 text-white text-center">
+        <div className="p-8 text-center text-white md:w-1/2">
           
         </div>
 
-        <div className="md:w-1/2 p-8">
-          <div className="text-left space-y-2 mb-6">
+        <div className="p-8 md:w-1/2">
+          <div className="mb-6 space-y-2 text-left">
             <h2 className="text-xl font-semibold text-white">
               Create a new account
             </h2>
-            <p className="text-gray-400 text-sm">
+            <p className="text-sm text-gray-400">
               Create your account and start using state-of-the-art document signing. Open and beautiful signing is within your grasp.
             </p>
           </div>
@@ -108,7 +113,7 @@ const SignUp: React.FC<SignUpProps> = () => {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-2 top-1/2 transform -translate-y-1/2 focus:outline-none"
+                  className="absolute transform -translate-y-1/2 right-2 top-1/2 focus:outline-none"
                 >
                   {showPassword ? (
                     <EyeIcon className="w-4 h-4 text-gray-500" />
@@ -137,7 +142,7 @@ const SignUp: React.FC<SignUpProps> = () => {
             </button>
           </form>
           <div className="mt-4 text-center">
-            <p className="text-gray-400 text-xs">
+            <p className="text-xs text-gray-400">
               Already have an account? <Link href="/signin" className="text-[#99FF00] hover:underline">Sign In</Link>
             </p>
           </div>
