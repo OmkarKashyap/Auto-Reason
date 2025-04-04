@@ -3,20 +3,31 @@ from fastapi.middleware.cors import CORSMiddleware
 import firebase_admin
 from firebase_admin import credentials
 
-from core.config import initialize_firebase_admin
-from api.endpoints import auth
-
-# try:
-#     cred = credentials.Certificate("backend\\admin-sdk-1.json")
-#     firebase_admin.initialize_app(cred)
-# except Exception as e:
-#     print(f"Error initializing Firebase: {e}")
+from app.core.config import initialize_firebase_admin
+from app.api.endpoints import auth, graphs
+from app.api.endpoints.graphs import driver
 
 app = FastAPI()
 
 @app.on_event("startup")
 async def startup_event():
+    # Initialize Firebase first
     initialize_firebase_admin()
+    print("Firebase initialization attempted on startup.") # Add print/log
+
+    # Then handle the driver (Neo4j?)
+    if driver:
+        try: # Add try-except for driver verification
+            driver.verify_connectivity()
+            print("Driver connectivity verified.") # Add print/log
+        except Exception as e:
+            print(f"Error verifying driver connectivity: {e}") # Log error
+
+@app.on_event("shutdown")
+async def shutdown_event(): # Renamed for clarity
+    if driver:
+        driver.close()
+        print("Driver closed.") # Add print/log
 
 origins = [
     "http://localhost:3000",  # Add the origin of your frontend app
@@ -32,7 +43,9 @@ app.add_middleware(
 )
 
 app.include_router(auth.router, prefix="/api", tags=["Authentication"])
+app.include_router(graphs.router, prefix="/api", tags=["Graphs"])
 
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+    

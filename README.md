@@ -7,7 +7,7 @@ npm run dev
 python -m venv venv
 venv/scripts/activate.ps1
 pip install -r requirements.txt
-python app/main.py
+python app/main.py OR uvicorn app.main:app --reload
 
 #env
 cd backend
@@ -17,6 +17,8 @@ Paste the admin-sdk from the firebase website
 cd frontend
 touch .env.local
 paste the NEXT_PUBLIC_FIREBASE_API_KEY, NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN, NEXT_PUBLIC_FIREBASE_PROJECT_ID, NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET, NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID, NEXT_PUBLIC_FIREBASE_APP_ID, NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
+
+Copy the NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD into .env
 
 ## Project Overview
 
