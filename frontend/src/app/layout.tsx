@@ -6,8 +6,8 @@ import Navbar from '@/components/Navbar'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Your App Name',
-  description: 'Your app description',
+  title: "Personal Thought Graph",
+  description: "Visualize your ideas as a dynamic knowledge graph",
 }
 
 export default function RootLayout({
@@ -17,7 +17,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`${inter.className} bg-documenso-dark text-white`}>
+      <body className={`${inter.className} bg-documenso-dark text-white h-screen overflow-hidden`}>
         <Navbar />
         {children}
       </body>

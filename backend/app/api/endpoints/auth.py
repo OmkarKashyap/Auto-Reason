@@ -5,7 +5,8 @@ from firebase_admin import auth as firebase_auth # Alias for clarity
 from firebase_admin import firestore
 from firebase_admin import exceptions as firebase_exceptions # Use for specific Firebase exceptions if needed elsewhere
 from app.core.config import initialize_firebase_admin # Import your config function
-
+from firebase_admin import exceptions as firebase_exceptions
+import time
 # def get_firebase_app():
 #     if not firebase_admin._apps:
 #         initialize_firebase_admin()
@@ -110,7 +111,7 @@ async def signin_user(
     Assumes the client has already signed in using a Firebase client SDK (Web, Android, iOS).
     """
     if not firebase_app:
-         raise HTTPException(
+        raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Firebase application not initialized."
         )
@@ -119,56 +120,63 @@ async def signin_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authorization scheme. Use 'Bearer <token>'.",
-            headers={"WWW-Authenticate": "Bearer"}, # Standard practice
+            headers={"WWW-Authenticate": "Bearer"},  # Standard practice
         )
 
     id_token = authorization.split("Bearer ")[1]
 
     if not id_token:
-         raise HTTPException(
+        raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Bearer token missing.",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
     try:
-        # Verify the ID token using the Firebase Admin SDK.
-        # This checks expiration, signature, audience, issuer, etc.
-        # It also handles clock skew automatically.
-        decoded_token = firebase_auth.verify_id_token(id_token, app=firebase_app, check_revoked=True)
+        # Log the server's current time
+        server_time = int(time.time())
+        print(f"Server time: {server_time}")
+
+        # Verify the ID token using the Firebase Admin SDK
+        decoded_token = firebase_auth.verify_id_token(
+            id_token,
+            check_revoked=True,  # Check if the token has been revoked
+            app=firebase_app      # Pass the specific app instance
+        )
+
+        # Log the token's issued-at time
+        iat = decoded_token.get("iat")
+        print(f"Token issued at (iat): {iat}")
+
         uid = decoded_token.get("uid")
 
         if not uid:
-             # This case should technically be caught by verify_id_token, but defensive check
-             raise firebase_auth.InvalidIdTokenError("Token is missing 'uid' claim.")
+            raise firebase_auth.InvalidIdTokenError("Token is missing 'uid' claim.")
 
         # Optional: Retrieve full user data if needed for backend logic
         try:
             user = firebase_auth.get_user(uid, app=firebase_app)
             print(f"Successfully verified token for user: {uid} ({user.email})")
-            # You could add checks here (e.g., if user is disabled: if user.disabled:)
             if user.disabled:
-                 raise HTTPException(
+                raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="User account is disabled.",
                 )
         except firebase_auth.UserNotFoundError:
-             # This indicates an inconsistency: token is valid, but user doesn't exist in Auth.
-             # Might happen if user was deleted very recently *after* token issuance.
-             print(f"User not found for UID: {uid}, though token was valid.")
-             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, # Or 401 depending on policy
+            print(f"User not found for UID: {uid}, though token was valid.")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
                 detail="User associated with this token not found.",
-             )
+            )
 
         # Return user ID upon successful verification
         return {"message": "Sign in successful", "userId": uid}
 
     except firebase_auth.RevokedIdTokenError:
-         raise HTTPException(
+        raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Firebase ID token has been revoked.",
-             headers={"WWW-Authenticate": "Bearer error=\"invalid_token\", error_description=\"Token revoked\""},
+            headers={"WWW-Authenticate": "Bearer error=\"invalid_token\", error_description=\"Token revoked\""},
         )
     except firebase_auth.ExpiredIdTokenError:
         raise HTTPException(
@@ -183,15 +191,13 @@ async def signin_user(
             detail=f"Invalid Firebase ID token: {e}",
             headers={"WWW-Authenticate": "Bearer error=\"invalid_token\""},
         )
-    except firebase_auth.FirebaseAuthError as e:
-         # Catch other potential Firebase Auth errors during verification/get_user
+    except firebase_exceptions.FirebaseError as e:
         print(f"Firebase Auth error during sign-in verification: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An error occurred during Firebase sign-in verification: {e}",
         )
     except Exception as e:
-        # Catch-all for unexpected errors
         print(f"An unexpected error occurred during sign-in: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

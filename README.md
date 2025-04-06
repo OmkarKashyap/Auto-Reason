@@ -20,6 +20,13 @@ paste the NEXT_PUBLIC_FIREBASE_API_KEY, NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN, NEXT_P
 
 Copy the NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD into .env
 
+If there is clockk skey, open comand prompt as administrator and run :
+net start w32time
+w32tm /resync
+w32tm /query /status
+net stop w32time
+net start w32time
+
 ## Project Overview
 
 **Personal Thought Graph** is a web-based platform that transforms user-entered text into a dynamic knowledge graph. It leverages a locally running, open-source LLM to extract summaries, entities (nodes), and relationships (edges) from text. Users can choose to either create a brand-new graph or add to an existing one. The system then visualizes the evolving network of ideas in an interactive UI.
@@ -253,3 +260,6 @@ personal-thought-graph/
    git clone <repo-url>
    cd personal-thought-graph
 ````
+
+Zustand for sate management
+cytoscape for displaying the graphs

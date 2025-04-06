@@ -1,95 +1,174 @@
 'use client';
-import { useState } from "react";
-import Head from "next/head";
 
-// Dummy hook to get Firebase user; replace with your actual auth hook
-const useAuth = () => {
-  return { uid: "firebase_user_uid" }; // Replace with real UID
-};
+import React, { useState, useEffect, useCallback } from 'react';
+import GraphDisplay from './GraphDisplay';
+import TextInput from './TextInput';
+import { fetchGraphData, processText, fetchAuthenticated } from '../lib/api';
+import { GraphData } from '@/lib/types';
 
 export default function Dashboard() {
-  const { uid } = useAuth();
-  const [showModal, setShowModal] = useState(false);
-  const [textInput, setTextInput] = useState("");
-  const [responseMsg, setResponseMsg] = useState("");
+  const [selectedGraph, setSelectedGraph] = useState<string | null>(null); // Track the selected graph
+  const [graphData, setGraphData] = useState<GraphData>({ nodes: [], edges: [] });
+  const [userGraphs, setUserGraphs] = useState<string[]>([]); // Store user-specific graphs
+  const [newGraphName, setNewGraphName] = useState<string>(''); // Track the new graph name
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!textInput.trim()) return;
+  // Load graph data when a graph is selected
+  const loadGraph = useCallback(async (graphName: string) => {
+    setIsLoading(true);
+    setError(null);
     try {
-      const res = await fetch("/api/add_graph", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ uid, text: textInput }),
+      const data = await fetchGraphData(graphName);
+      setGraphData(data);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load graph data.');
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // Handle graph selection from the sidebar
+  const handleGraphSelection = (graphName: string) => {
+    setSelectedGraph(graphName);
+    loadGraph(graphName);
+  };
+
+  // Handle text input submission
+  const handleTextInput = async (text: string) => {
+    if (!selectedGraph) {
+      setError('Please select a graph first.');
+      return;
+    }
+    setIsLoading(true);
+    setError(null);
+    try {
+      // Add the text as a node to the current graph
+      const updatedGraph = await processText({ graphName: selectedGraph, text });
+      setGraphData(updatedGraph); // Update the graph with the new data
+    } catch (err: any) {
+      setError(err.message || 'Failed to process text.');
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Fetch user-specific graphs on component mount
+  useEffect(() => {
+    const loadUserGraphs = async () => {
+      try {
+        const response = await fetchAuthenticated<{ graphs: { name: string }[] }>('/api/graphs', { method: 'GET' });
+        if (Array.isArray(response.graphs)) {
+          // Map the response to an array of strings
+          const graphNames = response.graphs.map((graph) => graph.name);
+          setUserGraphs(graphNames); // Update state with the graph names
+        } else {
+          console.error('Unexpected response format:', response);
+          setError('Failed to load user graphs.');
+        }
+      } catch (err: any) {
+        console.error('Failed to load user graphs:', err);
+        setError('Failed to load user graphs.');
+      }
+    };
+
+    loadUserGraphs();
+  }, []);
+
+  // Create a new graph
+  const createGraph = async () => {
+    if (!newGraphName.trim()) {
+      setError('Graph name cannot be empty.');
+      return;
+    }
+    setIsLoading(true);
+    setError(null);
+    try {
+      await fetchAuthenticated('/api/graphs', {
+        method: 'POST',
+        body: JSON.stringify({ name: newGraphName }),
+        headers: { 'Content-Type': 'application/json' },
       });
-      const data = await res.json();
-      setResponseMsg("Graph updated successfully!");
-      console.log("Graph data:", data.topics);
-      setShowModal(false);
-      setTextInput("");
-    } catch (error) {
-      console.error("Error updating graph:", error);
-      setResponseMsg("Error updating graph.");
+      setUserGraphs((prev) => [...prev, newGraphName]); // Add the new graph to the list
+      setNewGraphName(''); // Clear the input field
+    } catch (err: any) {
+      console.error('Failed to create graph:', err);
+      setError('Failed to create graph.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
-    <>
-      <Head>
-        <title>Thought Graph Dashboard</title>
-      </Head>
-      <div className="min-h-screen p-6 text-white bg-gray-900">
-        <header className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold">Thought Graph Dashboard</h1>
+    <div className="flex h-screen text-gray-900 bg-gray-100 dark:bg-gray-900 dark:text-gray-100">
+      {/* Sidebar */}
+      <div className="flex flex-col w-64 p-4 text-white bg-gray-800">
+        <h2 className="mb-4 text-xl font-bold">Graphs</h2>
+        <div className="mb-4">
+          <input
+            type="text"
+            value={newGraphName}
+            onChange={(e) => setNewGraphName(e.target.value)}
+            placeholder="New graph name"
+            className="w-full p-2 mb-2 text-gray-900 rounded"
+          />
           <button
-            className="px-4 py-2 bg-teal-500 rounded hover:bg-teal-400"
-            onClick={() => setShowModal(true)}
+            onClick={createGraph}
+            className="w-full p-2 text-white bg-blue-500 rounded hover:bg-blue-600"
           >
-            Add to Existing Graph
+            Create Graph
           </button>
-        </header>
-
-        {responseMsg && (
-          <div className="mb-4 text-sm text-center text-green-300">
-            {responseMsg}
-          </div>
-        )}
-
-        {/* (Optional) Render your graph visualization here using a library like vis-network or react-force-graph */}
-
-        {showModal && (
-          <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
-            <div className="p-6 bg-gray-800 rounded-lg w-96">
-              <h2 className="mb-4 text-xl font-semibold">Enter your paragraph</h2>
-              <form onSubmit={handleSubmit}>
-                <textarea
-                  className="w-full h-24 p-2 text-white bg-gray-700 rounded"
-                  placeholder="Type your text here..."
-                  value={textInput}
-                  onChange={(e) => setTextInput(e.target.value)}
-                />
-                <div className="flex justify-end gap-2 mt-4">
-                  <button
-                    type="button"
-                    className="px-3 py-1 bg-gray-600 rounded hover:bg-gray-500"
-                    onClick={() => setShowModal(false)}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-3 py-1 bg-teal-500 rounded hover:bg-teal-400"
-                  >
-                    Submit
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
+        </div>
+        <ul className="space-y-2">
+          {userGraphs.length > 0 ? (
+            userGraphs.map((graphName) => (
+              <li
+                key={graphName}
+                onClick={() => handleGraphSelection(graphName)}
+                className={`p-2 rounded cursor-pointer ${
+                  selectedGraph === graphName ? 'bg-blue-500' : 'hover:bg-gray-700'
+                }`}
+              >
+                {graphName}
+              </li>
+            ))
+          ) : (
+            <p>No graphs available. Please create one.</p>
+          )}
+        </ul>
       </div>
-    </>
+
+      {/* Main Content */}
+      <div className="flex flex-col flex-1">
+        {/* Graph Display Area */}
+        <div className="flex-1 bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-850 rounded-lg shadow-inner mb-4 relative overflow-hidden border border-gray-200 dark:border-gray-700 min-h-[300px]">
+          {isLoading && (
+            <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm">
+              <p>Loading...</p>
+            </div>
+          )}
+          {error && !isLoading && (
+            <div className="absolute inset-0 z-10 flex items-center justify-center p-4 bg-red-50 dark:bg-red-900/30">
+              <p className="text-red-600 dark:text-red-300">{error}</p>
+            </div>
+          )}
+          {!isLoading && !error && selectedGraph && (
+            <GraphDisplay graphData={graphData} />
+          )}
+          {!isLoading && !error && !selectedGraph && (
+            <div className="flex items-center justify-center h-full">
+              <p className="text-gray-500 dark:text-gray-400">Select a graph to display its details.</p>
+            </div>
+          )}
+        </div>
+
+        {/* Text Input Area */}
+        <div className="p-4 bg-gray-200 dark:bg-gray-800">
+          <TextInput onSubmit={handleTextInput} />
+        </div>
+      </div>
+    </div>
   );
 }
