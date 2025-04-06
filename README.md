@@ -7,7 +7,25 @@ npm run dev
 python -m venv venv
 venv/scripts/activate.ps1
 pip install -r requirements.txt
-python app/main.py
+python app/main.py OR uvicorn app.main:app --reload
+
+#env
+cd backend
+touch admin-sdk-1.json
+Paste the admin-sdk from the firebase website
+
+cd frontend
+touch .env.local
+paste the NEXT_PUBLIC_FIREBASE_API_KEY, NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN, NEXT_PUBLIC_FIREBASE_PROJECT_ID, NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET, NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID, NEXT_PUBLIC_FIREBASE_APP_ID, NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
+
+Copy the NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD into .env
+
+If there is clockk skey, open comand prompt as administrator and run :
+net start w32time
+w32tm /resync
+w32tm /query /status
+net stop w32time
+net start w32time
 
 ## Project Overview
 
@@ -242,3 +260,6 @@ personal-thought-graph/
    git clone <repo-url>
    cd personal-thought-graph
 ````
+
+Zustand for sate management
+cytoscape for displaying the graphs

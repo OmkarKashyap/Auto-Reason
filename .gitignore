@@ -20,5 +20,14 @@ frontend/.env.production.local
 
 
 backend/admin-sdk.json
+backend/admin-sdk-1.json
 
 frontend/env.local
+
+backend/app/api/__pycache__
+backend/app/api/endpoints/__pycache__
+backend/app/core/__pycache__
+backend/app/__pycache__
+
+
+frontend/src/lib/firebase.ts
