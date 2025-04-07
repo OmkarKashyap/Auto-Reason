@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import GraphDisplay from './GraphDisplay';
 import TextInput from './TextInput';
-import { fetchGraphData, processText, fetchAuthenticated } from '../lib/api';
+import { fetchGraphData, fetchAuthenticated } from '../lib/api';
 import { GraphData } from '@/lib/types';
 
 export default function Dashboard() {
@@ -38,15 +38,52 @@ export default function Dashboard() {
   // Handle text input submission
   const handleTextInput = async (text: string) => {
     if (!selectedGraph) {
-      setError('Please select a graph first.');
+      setError('Please select or create a graph first.');
       return;
     }
+
     setIsLoading(true);
     setError(null);
+
     try {
-      // Add the text as a node to the current graph
-      const updatedGraph = await processText({ graphName: selectedGraph, text });
-      setGraphData(updatedGraph); // Update the graph with the new data
+      // Parse the text input to extract nodes and edges
+      const lines = text.split('\n');
+      const nodes = new Set<string>();
+      const edges: { from: string; to: string }[] = [];
+
+      lines.forEach((line) => {
+        const match = line.match(/(\w+)\s*->\s*(\w+)/); // Match "A -> B" format
+        if (match) {
+          const from = match[1];
+          const to = match[2];
+          nodes.add(from);
+          nodes.add(to);
+          edges.push({ from, to });
+        }
+      });
+
+      // Update the graph data
+      setGraphData({
+        nodes: Array.from(nodes).map((id) => ({ id, label: id })),
+        edges: edges.map((edge) => ({ source: edge.from, target: edge.to })), // Map to match GraphEdge type
+      });
+
+      // Optionally, send the updated graph to the backend
+      await fetchAuthenticated('/api/graphs/update', {
+        method: 'POST',
+        body: JSON.stringify({
+          graphName: selectedGraph,
+          nodes: Array.from(nodes).map((id) => ({ id, properties: { label: id } })),
+          edges: edges.map((edge) => ({
+            source: edge.from,
+            target: edge.to,
+            type: "RELATION",
+            properties: {},
+          })),
+        }),
+        headers: { 'Content-Type': 'application/json' },
+      });
+      
     } catch (err: any) {
       setError(err.message || 'Failed to process text.');
       console.error(err);
@@ -111,8 +148,8 @@ export default function Dashboard() {
             type="text"
             value={newGraphName}
             onChange={(e) => setNewGraphName(e.target.value)}
-            placeholder="New graph name"
-            className="w-full p-2 mb-2 text-gray-900 rounded"
+            placeholder="Enter new graph name"
+            className="w-full p-2 mb-2 rounded text-white-900"
           />
           <button
             onClick={createGraph}
@@ -159,14 +196,14 @@ export default function Dashboard() {
           )}
           {!isLoading && !error && !selectedGraph && (
             <div className="flex items-center justify-center h-full">
-              <p className="text-gray-500 dark:text-gray-400">Select a graph to display its details.</p>
+              <p className="text-gray-500 dark:text-gray-400">Select or create a graph to display its details.</p>
             </div>
           )}
         </div>
 
         {/* Text Input Area */}
         <div className="p-4 bg-gray-200 dark:bg-gray-800">
-          <TextInput onSubmit={handleTextInput} />
+          <TextInput onSubmit={handleTextInput} disabled={!selectedGraph} />
         </div>
       </div>
     </div>
