@@ -1,32 +1,76 @@
 # Personal Thought Graph
+## 🛠️ Project Setup
 
-#frontend
+### Frontend
+
+```bash
+cd frontend
+npm install
 npm run dev
+```
 
-#backend
+### Backend
+
+``` bash
+cd backend
 python -m venv venv
-venv/scripts/activate.ps1
-pip install -r requirements.txt
-python app/main.py OR uvicorn app.main:app --reload
+# For PowerShell (Windows)
+venv\Scripts\Activate.ps1
+# For Bash (Linux/Mac)
+source venv/bin/activate
 
-#env
+pip install -r requirements.txt
+
+# Run the server
+python app/main.py
+# or, alternatively
+uvicorn app.main:app --reload
+```
+
+## 🔐 Environment Setup
+
+### Backend Firebase Admin SDK
+
+```bash
 cd backend
 touch admin-sdk-1.json
-Paste the admin-sdk from the firebase website
+```
+Paste your Firebase Admin SDK JSON content into admin-sdk-1.json. You can download this from the Firebase Console.
 
+### Frontend Firebase Environment Variables
+```bash
 cd frontend
 touch .env.local
-paste the NEXT_PUBLIC_FIREBASE_API_KEY, NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN, NEXT_PUBLIC_FIREBASE_PROJECT_ID, NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET, NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID, NEXT_PUBLIC_FIREBASE_APP_ID, NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
+```
 
-Copy the NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD into .env
+Paste the following variables into .env.local:
+```bash
+NEXT_PUBLIC_FIREBASE_API_KEY=your_api_key
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_auth_domain
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_storage_bucket
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
+NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=your_measurement_id
+```
 
-If there is clockk skey, open comand prompt as administrator and run :
+### Neo4j Environment Variables (Backend)
+Add the following to your environment configuration:
+```bash
+NEO4J_URI=your_neo4j_uri
+NEO4J_USER=your_neo4j_username
+NEO4J_PASSWORD=your_neo4j_password
+```
+
+## 🕒 Clock Sync (Windows Only)
+If you're experiencing clock skew issues (e.g., with authentication or Firebase), run the following commands in Command Prompt as Administrator:
+```bash
 net start w32time
 w32tm /resync
 w32tm /query /status
 net stop w32time
 net start w32time
-
+```
 ## Project Overview
 
 **Personal Thought Graph** is a web-based platform that transforms user-entered text into a dynamic knowledge graph. It leverages a locally running, open-source LLM to extract summaries, entities (nodes), and relationships (edges) from text. Users can choose to either create a brand-new graph or add to an existing one. The system then visualizes the evolving network of ideas in an interactive UI.
