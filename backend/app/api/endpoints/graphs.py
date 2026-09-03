@@ -1,165 +1,76 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
-from firebase_admin import auth as firebase_auth
-import os
-from dotenv import load_dotenv
-from neo4j import GraphDatabase
-import time
+import uuid
 
-from firebase_admin import auth
-# Load environment variables
-load_dotenv()
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
-# Neo4j Configuration
-NEO4J_URI = os.environ.get("NEO4J_URI", "bolt://localhost:7687")
-NEO4J_USER = os.environ.get("NEO4J_USER", "neo4j")
-NEO4J_PASSWORD = os.environ.get("NEO4J_PASSWORD", "")
+from app.api.dependencies import Owner, get_current_owner, get_db_session
+from app.core.config import settings
+from app.core.rate_limit import process_text_limiter
+from app.graph_manager.service import create_graph, get_owned_graph, list_graphs_for_owner, merge_extraction_into_graph
+from app.llm.factory import get_llm_provider
+from app.schemas.graph import CreateGraphRequest, EdgeOut, GraphDetail, GraphSummary, NodeOut, ProcessTextRequest
 
-# Initialize Neo4j driver
-driver = None
-try:
-    driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASSWORD))
-    print("Connected to Neo4j database")
-except Exception as e:
-    print(f"Error connecting to Neo4j database: {e}")
+router = APIRouter(prefix="/graphs", tags=["Graphs"])
 
-def get_user_graphs(uid: str):
-    if driver is None:
-        print("Neo4j driver is not initialized.")
-        return []
-    try:
-        with driver.session() as session:
-            result = session.run(
-                """
-                MATCH (u:User {userId: $uid})-[:HAS_GRAPH]->(g:Graph)
-                RETURN g.name AS name
-                """,
-                uid=uid
-            )
-            graphs = [{"name": record["name"]} for record in result]
-        return graphs
-    except Exception as e:
-        print(f"Error retrieving graphs: {e}")
-        return []
 
-# Helper function to verify Firebase token
-def verify_firebase_token(request: Request) -> str:
-    auth_header = request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
-    
-    id_token = auth_header.split("Bearer ")[1]
-    try:
-        server_time = int(time.time())
-        print(f"Server time: {server_time}")
+def _to_detail(graph) -> GraphDetail:
+    return GraphDetail(
+        id=graph.id,
+        name=graph.name,
+        summary=graph.summary,
+        nodes=[NodeOut(id=n.id, label=n.label, description=n.description) for n in graph.nodes],
+        edges=[EdgeOut(id=e.id, source=e.source_node_id, target=e.target_node_id, label=e.label) for e in graph.edges],
+    )
 
-        # Decode the token
-        decoded_token = auth.verify_id_token(id_token, check_revoked=True)
 
-        # Log the token's issued-at time
-        iat = decoded_token.get("iat")
-        print(f"Token issued at (iat): {iat}")
+@router.post("", status_code=status.HTTP_201_CREATED, response_model=GraphSummary)
+async def create_new_graph(
+    body: CreateGraphRequest,
+    owner: Owner = Depends(get_current_owner),
+    session: AsyncSession = Depends(get_db_session),
+):
+    graph = await create_graph(session, owner.type, owner.id, body.name)
+    return GraphSummary.model_validate(graph)
 
-        return decoded_token
-    except Exception as e:
-        raise HTTPException(status_code=401, detail="Invalid token")
 
-# Helper function to fetch graph data from Neo4j
-def fetch_graph_data_from_neo4j(uid: str, graph_name: str):
-    if driver is None:
-        raise HTTPException(status_code=500, detail="Neo4j driver is not initialized.")
-    try:
-        with driver.session() as session:
-            result = session.run(
-                """
-                MATCH (u:User {userId: $user_id})-[:HAS_GRAPH]->(g:Graph {name: $graph_name})
-                OPTIONAL MATCH (g)-[:CONTAINS_THOUGHT]->(t:Thought)
-                RETURN g.name AS name, collect(t.content) AS thoughts
-                """,
-                user_id=uid,
-                graph_name=graph_name,
-            )
-            record = result.single()
-            if not record:
-                raise HTTPException(status_code=404, detail=f"Graph '{graph_name}' not found for user.")
-            return {
-                "name": record["name"],
-                "thoughts": record["thoughts"],
-            }
-    except Exception as e:
-        print(f"Error fetching graph data: {e}")
-        raise HTTPException(status_code=500, detail="Error fetching graph data from Neo4j")
+@router.get("", response_model=list[GraphSummary])
+async def list_my_graphs(
+    owner: Owner = Depends(get_current_owner),
+    session: AsyncSession = Depends(get_db_session),
+):
+    graphs = await list_graphs_for_owner(session, owner.type, owner.id)
+    return [GraphSummary.model_validate(g) for g in graphs]
 
-def ensure_user_exists(uid: str):
-    if driver is None:
-        raise HTTPException(status_code=500, detail="Neo4j driver is not initialized.")
-    try:
-        with driver.session() as session:
-            # Check if the user exists, and create if not
-            session.run(
-                """
-                MERGE (u:User {userId: $uid})
-                RETURN u
-                """,
-                uid=uid,
-            )
-    except Exception as e:
-        print(f"Error ensuring user exists: {e}")
-        raise HTTPException(status_code=500, detail="Error ensuring user exists in Neo4j.")
-# FastAPI Router
-router = APIRouter()
 
-# Endpoint to retrieve all graphs for a user
-@router.get("/graphs")
-async def user_graphs(request: Request):
-    print('hi')
-    uid = verify_firebase_token(request)
-    try:
-        # Ensure the user exists in Neo4j
-        ensure_user_exists(uid)
-        
-        # Retrieve the user's graphs
-        graphs = get_user_graphs(uid)
-        return {"graphs": graphs}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error retrieving graphs: {e}")
-    
-@router.get("/graphs/{graph_name}")
-async def get_specific_graph(graph_name: str, request: Request):
-    uid = verify_firebase_token(request)
-    try:
-        # Ensure the user exists in Neo4j
-        ensure_user_exists(uid)
-        
-        # Retrieve the specific graph
-        graph_data = fetch_graph_data_from_neo4j(uid, graph_name)
-        return {"graph": graph_data}
-    except HTTPException as e:
-        raise e
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error retrieving graph '{graph_name}': {e}")
-    
-@router.post("/api/process-text")
-async def process_text(request: Request, body: dict):
-    uid = verify_firebase_token(request)  # Extract UID from Firebase token
-    graph_name = body.get("graphName")
-    text = body.get("text")
+@router.get("/{graph_id}", response_model=GraphDetail)
+async def get_graph_detail(
+    graph_id: uuid.UUID,
+    owner: Owner = Depends(get_current_owner),
+    session: AsyncSession = Depends(get_db_session),
+):
+    graph = await get_owned_graph(session, graph_id, owner.type, owner.id)
+    return _to_detail(graph)
 
-    if not graph_name or not text:
-        raise HTTPException(status_code=400, detail="Graph name and text are required.")
 
-    try:
-        with driver.session() as session:
-            session.run(
-                """
-                MATCH (u:User {userId: $uid})-[:HAS_GRAPH]->(g:Graph {name: $graph_name})
-                MERGE (t:Thought {content: $text})
-                MERGE (g)-[:CONTAINS_THOUGHT]->(t)
-                """,
-                uid=uid,
-                graph_name=graph_name,
-                text=text,
-            )
-        return {"message": "Node added successfully"}
-    except Exception as e:
-        print(f"Error processing text: {e}")
-        raise HTTPException(status_code=500, detail="Error processing text.")
+@router.post("/{graph_id}/process-text", response_model=GraphDetail)
+async def process_text(
+    graph_id: uuid.UUID,
+    body: ProcessTextRequest,
+    owner: Owner = Depends(get_current_owner),
+    session: AsyncSession = Depends(get_db_session),
+):
+    if len(body.text) > settings.max_input_chars:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Text exceeds the {settings.max_input_chars} character limit.",
+        )
+
+    process_text_limiter.check(key=f"{owner.type}:{owner.id}")
+
+    graph = await get_owned_graph(session, graph_id, owner.type, owner.id)
+
+    provider = get_llm_provider()
+    extraction = await provider.extract_graph(body.text)
+
+    graph = await merge_extraction_into_graph(session, graph, extraction)
+    return _to_detail(graph)

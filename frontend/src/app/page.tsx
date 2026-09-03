@@ -1,6 +1,11 @@
+'use client';
+
 import Image from 'next/image'
+import { useRouter } from 'next/navigation'
 
 export default function Home() {
+  const router = useRouter();
+
   return (
     <div className="min-h-screen pt-16"> 
       <div className="flex min-h-screen">
@@ -33,11 +38,11 @@ export default function Home() {
             </div>
             
             <div className="flex space-x-4 pt-6">
-              <button className="bg-[#99FF00] hover:brightness-110 text-black font-medium px-8 py-3 rounded-lg transition-all">
+              <button
+                onClick={() => router.push('/dashboard')}
+                className="bg-[#99FF00] hover:brightness-110 text-black font-medium px-8 py-3 rounded-lg transition-all"
+              >
                 Start Mapping
-              </button>
-              <button className="bg-[#99FF00] hover:brightness-110 text-black font-medium px-8 py-3 rounded-lg transition-all">
-                View Examples
               </button>
             </div>
           </div>

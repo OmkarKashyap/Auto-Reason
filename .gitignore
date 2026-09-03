@@ -1,5 +1,9 @@
 env
 .env
+.env.*
+!.env.example
+frontend/.env.local
+docs/
 
 backend/venv
 backend/__pycache__
@@ -24,10 +28,8 @@ backend/admin-sdk-1.json
 
 frontend/env.local
 
-backend/app/api/__pycache__
-backend/app/api/endpoints/__pycache__
-backend/app/core/__pycache__
-backend/app/__pycache__
+__pycache__/
+*.pyc
 
 
 frontend/src/lib/firebase.ts

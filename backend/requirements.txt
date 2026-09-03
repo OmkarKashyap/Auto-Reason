@@ -1,8 +1,10 @@
-fastapi
-uvicorn
-transformers
-neo4j
-firebase-admin
 fastapi[all]
-neo4j
-pyjwt
+uvicorn
+pydantic-settings
+sqlalchemy[asyncio]
+asyncpg
+alembic
+anthropic
+groq
+firebase-admin
+itsdangerous

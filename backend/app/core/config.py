@@ -1,69 +1,93 @@
-# backend/app/core/config.py
-import os
-import firebase_admin
-from firebase_admin import credentials
-import logging 
+"""Application configuration.
+
+Single typed Settings object read from environment variables / .env.
+Replaces the previous scattered os.environ.get(...) calls throughout the app.
+"""
+import logging
+from functools import lru_cache
+
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = logging.getLogger(__name__)
 
-APP_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DEFAULT_KEY_PATH = os.path.join(APP_DIR, '..', 'admin-sdk-1.json')
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    env: str = Field(default="development", alias="ENV")
+
+    database_url: str = Field(
+        default="postgresql+asyncpg://postgres:postgres@localhost:5432/auto_reason",
+        alias="DATABASE_URL",
+    )
+
+    llm_provider: str = Field(default="anthropic", alias="LLM_PROVIDER")
+    anthropic_api_key: str | None = Field(default=None, alias="ANTHROPIC_API_KEY")
+    anthropic_model: str = Field(default="claude-opus-5", alias="ANTHROPIC_MODEL")
+    openai_api_key: str | None = Field(default=None, alias="OPENAI_API_KEY")
+    groq_api_key: str | None = Field(default=None, alias="GROQ_API_KEY")
+    groq_model: str = Field(default="llama-3.3-70b-versatile", alias="GROQ_MODEL")
+
+    cors_origins: str = Field(
+        default="http://localhost:3000", alias="CORS_ORIGINS"
+    )
+
+    secret_key: str = Field(
+        default="dev-only-insecure-secret-change-me", alias="SECRET_KEY"
+    )
+
+    firebase_service_account_key_path: str | None = Field(
+        default=None, alias="FIREBASE_SERVICE_ACCOUNT_KEY_PATH"
+    )
+
+    rate_limit_per_minute: int = Field(default=10, alias="RATE_LIMIT_PER_MINUTE")
+    max_input_chars: int = Field(default=20000, alias="MAX_INPUT_CHARS")
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
+
+
+settings = get_settings()
+
 
 _firebase_initialized = False
 
-def initialize_firebase_admin():
+
+def initialize_firebase_admin() -> bool:
+    """Best-effort Firebase Admin SDK init.
+
+    Firebase is optional in the anonymous-first model: if no credentials are
+    configured, sign-in/sign-up simply won't work, but anonymous graph usage
+    is unaffected. Never raises - callers should check the return value.
+    """
     global _firebase_initialized
     if _firebase_initialized:
-        logger.info("Firebase Admin SDK already initialized.")
-        return
+        return True
 
-    # Option 1: Prefer environment variable for flexibility (Recommended)
-    service_account_key_path_env = os.environ.get('FIREBASE_SERVICE_ACCOUNT_KEY_PATH')
-    if service_account_key_path_env:
-        try:
-            logger.info(f"Attempting Firebase init from env var path: {service_account_key_path_env}")
-            cred = credentials.Certificate(service_account_key_path_env)
-            firebase_admin.initialize_app(cred)
-            logger.info("Firebase Admin SDK initialized successfully from env var path.")
-            _firebase_initialized = True
-            return
-        except Exception as e:
-            logger.error(f"Error initializing Firebase from env var path '{service_account_key_path_env}': {e}")
-            # Decide if you want to fall back or raise immediately
+    import firebase_admin
+    from firebase_admin import credentials
 
-    # Option 2: Fallback to default path relative to project structure
-    default_path = DEFAULT_KEY_PATH # Use the calculated default path
-    if os.path.exists(default_path):
-         try:
-            logger.info(f"Attempting Firebase init from default file path: {default_path}")
-            cred = credentials.Certificate(default_path)
-            firebase_admin.initialize_app(cred)
-            logger.info(f"Firebase Admin SDK initialized successfully from file: {default_path}")
-            _firebase_initialized = True
-            return
-         except Exception as e:
-            logger.error(f"Error initializing Firebase from default file path '{default_path}': {e}")
-            # Decide if you want to fall back or raise immediately
+    if not settings.firebase_service_account_key_path:
+        logger.info("FIREBASE_SERVICE_ACCOUNT_KEY_PATH not set; Firebase auth disabled.")
+        return False
 
-    # Option 3: Fallback to Application Default Credentials (ADC)
     try:
-        logger.info("Attempting Firebase init with Application Default Credentials (ADC).")
-        # No explicit credential needed for ADC
-        firebase_admin.initialize_app() # Simpler call for ADC
-        logger.info("Firebase Admin SDK initialized successfully with ADC.")
+        cred = credentials.Certificate(settings.firebase_service_account_key_path)
+        firebase_admin.initialize_app(cred)
         _firebase_initialized = True
-        return
-    except Exception as e:
-        logger.error(f"Error initializing Firebase Admin SDK with ADC: {e}")
+        logger.info("Firebase Admin SDK initialized from %s", settings.firebase_service_account_key_path)
+        return True
+    except Exception:
+        logger.exception("Failed to initialize Firebase Admin SDK; Firebase auth disabled.")
+        return False
 
-    # If all methods fail
-    _firebase_initialized = False
-    raise Exception("Could not initialize Firebase Admin SDK. Check logs for details. Ensure key file path or ADC is configured correctly.")
 
-# Remove get_firebase_app() if you only initialize on startup.
-# If you NEED it elsewhere, ensure initialize_firebase_admin() has run first.
-# def get_firebase_app():
-#    if not _firebase_initialized:
-#       raise Exception("Firebase not initialized. Call initialize_firebase_admin first.")
-#       # Or potentially call initialize_firebase_admin() here, but startup is preferred.
-#    return firebase_admin.get_app()
+def firebase_enabled() -> bool:
+    return _firebase_initialized
