@@ -62,15 +62,15 @@ const GraphDisplay: React.FC<GraphDisplayProps> = ({ graphData, onEdgeSelect, hi
         animationDuration: 500,
         fit: true,
         // --- COSE specific options (adjust as needed) ---
-        idealEdgeLength: () => 100, // Wrap in a function
-        nodeOverlap: 20,
+        idealEdgeLength: () => 150, // Wrap in a function - more breathing room between connected nodes
+        nodeOverlap: 24,
         refresh: 20,
         randomize: false,
-        componentSpacing: 100,
-        nodeRepulsion: () => 400000, // Wrap in a function
+        componentSpacing: 120,
+        nodeRepulsion: () => 550000, // Wrap in a function - spreads clusters apart so labels don't collide
         edgeElasticity: () => 100, // Wrap in a function
         nestingFactor: 5,
-        gravity: 80,
+        gravity: 60,
         numIter: 1000,
         initialTemp: 200,
         coolingFactor: 0.95,
@@ -84,52 +84,67 @@ const GraphDisplay: React.FC<GraphDisplayProps> = ({ graphData, onEdgeSelect, hi
         cyRef.current = cytoscape({
         container: cyContainerRef.current,
         elements: elements,
-        style: [ // Define node and edge styles using Tailwind concepts where possible
+        style: [ // Dark-theme palette tuned for legibility on the app's near-black canvas
             {
             selector: 'node',
             style: {
-                'background-color': '#4B5563', // gray-600
+                'background-color': '#232b1c', // dark olive, tied to the accent green
                 'label': 'data(label)',
                 'width': 'label', 'height': 'label',
-                'padding': '10px',
+                'padding': '14px',
                 'shape': 'round-rectangle',
                 'text-valign': 'center',
                 'text-halign': 'center',
-                'color': '#FFFFFF', // white text
-                'font-size': '12px', // text-xs equivalent
-                'border-width': 1,
-                'border-color': '#374151' // gray-700
+                'color': '#F3F4F6', // near-white text
+                'font-size': '13px',
+                'font-weight': 500,
+                'border-width': 1.5,
+                'border-color': '#4d6633' // muted green border
             }
             },
              { // Style for selected nodes
                  selector: 'node:selected',
                  style: {
-                    'background-color': '#3B82F6', // blue-500
+                    'background-color': '#99FF00',
+                    'color': '#111827',
                     'border-width': 2,
-                    'border-color': '#1D4ED8' // blue-700
+                    'border-color': '#c2ff66'
                  }
              },
             {
             selector: 'edge',
             style: {
                 'width': 1.5,
-                'line-color': '#D1D5DB', // gray-300
+                'line-color': '#6B7280', // gray-500 - visible against the dark canvas
                 'target-arrow-color': '#9CA3AF', // gray-400
                 'target-arrow-shape': 'triangle',
                 'curve-style': 'bezier', // 'unbundled-bezier' for multiple edges
                 'label': 'data(label)',
-                'font-size': '10px', // smaller text
-                'color': '#6B7280', // gray-500
+                'font-size': '11px',
+                'font-weight': 500,
+                'color': '#E5E7EB', // near-white label text
                 'text-rotation': 'autorotate',
                 'text-margin-y': -10,
+                // Backing "halo" behind the label so it stays legible over
+                // crossing lines and other nodes, instead of floating text.
+                'text-background-color': '#161616',
+                'text-background-opacity': 0.9,
+                'text-background-shape': 'roundrectangle',
+                'text-background-padding': '3px',
+                'text-border-width': 1,
+                'text-border-color': '#2a2a2a',
+                'text-border-opacity': 1,
                 'arrow-scale': 1
             }
             },
             { // Style for selected edges
                  selector: 'edge:selected',
                  style: {
-                    'line-color': '#3B82F6', // blue-500
-                    'target-arrow-color': '#3B82F6',
+                    'line-color': '#99FF00',
+                    'target-arrow-color': '#99FF00',
+                    'color': '#111827',
+                    'text-background-color': '#99FF00',
+                    'text-background-opacity': 1,
                     'width': 2.5
                  }
              },
@@ -244,8 +259,19 @@ const GraphDisplay: React.FC<GraphDisplayProps> = ({ graphData, onEdgeSelect, hi
 
   }, [graphData, highlightIds]); // Re-run when data changes or a new highlight batch arrives
 
-  // Render the container div
-  return <div ref={cyContainerRef} className="w-full h-full bg-inherit" />; // Use Tailwind classes
+  // Render the container div. The dotted grid gives the canvas a sense of
+  // place (like a whiteboard) without competing with node/edge colors.
+  return (
+    <div
+      ref={cyContainerRef}
+      className="w-full h-full"
+      style={{
+        backgroundColor: '#161616',
+        backgroundImage: 'radial-gradient(#2a2a2a 1px, transparent 1px)',
+        backgroundSize: '22px 22px',
+      }}
+    />
+  );
 };
 
 // Memoize the component to prevent re-renders if props haven't changed

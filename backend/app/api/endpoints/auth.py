@@ -5,9 +5,17 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import IDENTITY_COOKIE_NAME, get_anonymous_id_if_present, get_db_session, set_identity_cookie
+from app.api.dependencies import (
+    IDENTITY_COOKIE_NAME,
+    Owner,
+    get_anonymous_id_if_present,
+    get_current_owner,
+    get_db_session,
+    set_identity_cookie,
+)
+from app.core.config import settings
 from app.db.models import Graph, User
-from app.schemas.auth import AuthResponse, LoginRequest, RegisterRequest
+from app.schemas.auth import AuthResponse, LoginRequest, MeResponse, RegisterRequest
 
 router = APIRouter(tags=["Authentication"])
 
@@ -98,5 +106,35 @@ async def login_user(
 @router.post("/logout")
 async def logout_user(response: Response):
     """Clear the identity cookie. The next request gets a fresh anonymous session."""
-    response.delete_cookie(IDENTITY_COOKIE_NAME)
+    is_production = settings.env == "production"
+    # These attributes must match how the cookie was originally set
+    # (set_identity_cookie) - a deletion Set-Cookie with mismatched
+    # Secure/SameSite can fail to clear the real cookie in the browser,
+    # leaving the caller still resolved as the logged-out user.
+    response.delete_cookie(
+        IDENTITY_COOKIE_NAME,
+        path="/",
+        secure=is_production,
+        samesite="none" if is_production else "lax",
+    )
     return {"message": "Logged out"}
+
+
+@router.get("/me", response_model=MeResponse)
+async def get_me(
+    owner: Owner = Depends(get_current_owner),
+    session: AsyncSession = Depends(get_db_session),
+):
+    """Resolve the caller's current identity, for the frontend to decide
+    whether to show signed-in or anonymous UI."""
+    if owner.type != "user":
+        return MeResponse(type=owner.type, id=owner.id)
+
+    result = await session.execute(select(User).where(User.id == owner.id))
+    user = result.scalar_one_or_none()
+    return MeResponse(
+        type="user",
+        id=owner.id,
+        fullName=user.full_name if user else None,
+        email=user.email if user else None,
+    )

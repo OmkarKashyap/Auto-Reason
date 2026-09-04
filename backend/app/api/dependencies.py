@@ -25,7 +25,12 @@ class Owner(BaseModel):
 
 def set_identity_cookie(response: Response, owner_type: str, owner_id: str) -> None:
     """Sign and set the identity cookie. Used both for anonymous session issuance
-    and for login/register, so both identity kinds flow through one mechanism."""
+    and for login/register, so both identity kinds flow through one mechanism.
+
+    Authenticated identities persist for a year. Anonymous ones are issued as a
+    plain session cookie (no max_age) so they end when the browser is actually
+    closed, rather than quietly outliving the anonymous visit that created them.
+    """
     signed = _serializer.dumps({"type": owner_type, "id": owner_id})
     is_production = settings.env == "production"
     response.set_cookie(
@@ -39,7 +44,7 @@ def set_identity_cookie(response: Response, owner_type: str, owner_id: str) -> N
         # frontend/backend differ only by port (same-site).
         samesite="none" if is_production else "lax",
         secure=is_production,
-        max_age=IDENTITY_COOKIE_MAX_AGE,
+        max_age=IDENTITY_COOKIE_MAX_AGE if owner_type == "user" else None,
     )
 
 

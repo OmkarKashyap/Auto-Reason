@@ -1,4 +1,4 @@
-import { GraphDetail, GraphSummary } from './types';
+import { GraphDetail, GraphSummary, Owner } from './types';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
 
@@ -47,6 +47,10 @@ export function getGraph(graphId: string): Promise<GraphDetail> {
   return apiFetch<GraphDetail>(`/api/graphs/${graphId}`, { method: 'GET' });
 }
 
+export function deleteGraph(graphId: string): Promise<void> {
+  return apiFetch<void>(`/api/graphs/${graphId}`, { method: 'DELETE' });
+}
+
 export function processText(graphId: string, text: string): Promise<GraphDetail> {
   return apiFetch<GraphDetail>(`/api/graphs/${graphId}/process-text`, {
     method: 'POST',
@@ -70,4 +74,8 @@ export function login(data: { email: string; password: string }) {
 
 export function logout() {
   return apiFetch<{ message: string }>('/api/logout', { method: 'POST' });
+}
+
+export function getMe(): Promise<Owner> {
+  return apiFetch<Owner>('/api/me', { method: 'GET' });
 }

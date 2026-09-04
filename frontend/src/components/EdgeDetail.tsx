@@ -19,41 +19,41 @@ export default function EdgeDetail({ edge, nodes, onClose }: EdgeDetailProps) {
     typeof edge.confidence === 'number' ? Math.round(edge.confidence * 100) : null;
 
   return (
-    <div className="absolute bottom-4 right-4 z-20 w-80 rounded-lg border border-gray-200 bg-white p-4 shadow-lg dark:border-gray-700 dark:bg-gray-800">
+    <div className="absolute bottom-4 right-4 z-20 w-80 rounded-xl border border-white/10 bg-[#1e1e1e]/95 backdrop-blur-sm p-4 shadow-2xl">
       <div className="mb-3 flex items-start justify-between">
-        <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100">Relationship</h3>
+        <h3 className="text-sm font-semibold text-gray-100">Relationship</h3>
         <button
           onClick={onClose}
           aria-label="Close"
-          className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+          className="text-gray-500 hover:text-white transition-colors leading-none text-lg"
         >
           &times;
         </button>
       </div>
 
-      <p className="mb-3 text-sm text-gray-900 dark:text-gray-100">
+      <p className="mb-3 text-sm text-gray-100">
         <span className="font-medium">{sourceLabel}</span>{' '}
-        <span className="text-gray-400">&rarr; {edge.label} &rarr;</span>{' '}
+        <span className="text-[#99FF00]">&rarr; {edge.label} &rarr;</span>{' '}
         <span className="font-medium">{targetLabel}</span>
       </p>
 
       <div className="mb-2">
-        <p className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Evidence</p>
-        <p className="text-sm italic text-gray-700 dark:text-gray-300">
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Evidence</p>
+        <p className="text-sm italic text-gray-300">
           {edge.evidence ? `"${edge.evidence}"` : 'No evidence recorded for this relationship.'}
         </p>
       </div>
 
       <div className="mb-2">
-        <p className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Confidence</p>
-        <p className="text-sm text-gray-700 dark:text-gray-300">
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Confidence</p>
+        <p className="text-sm text-gray-300">
           {confidencePct !== null ? `${confidencePct}%` : 'Not available'}
         </p>
       </div>
 
       <div>
-        <p className="text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">Source</p>
-        <p className="text-sm text-gray-700 dark:text-gray-300">{edge.source_label}</p>
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Source</p>
+        <p className="text-sm text-gray-300">{edge.source_label}</p>
       </div>
     </div>
   );

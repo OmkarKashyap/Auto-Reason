@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { registerUser } from "../lib/api";
+import { useAuthStore } from "../store/authStore";
 
 const SignUp = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -15,6 +16,7 @@ const SignUp = () => {
   const [isLoading, setIsLoading] = useState(false);
 
   const router = useRouter();
+  const refreshAuth = useAuthStore((state) => state.refresh);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -35,6 +37,7 @@ const SignUp = () => {
         email,
         password,
       });
+      await refreshAuth();
 
       setSuccessMessage("Account created successfully!");
 
@@ -54,10 +57,21 @@ const SignUp = () => {
   };
 
   return (
-    <div className="mt-4 min-h-screen flex items-center justify-center bg-[#1C1C1C]">
-      <div className="w-full max-w-4xl bg-[#232323] rounded-lg shadow-xl flex overflow-hidden">
+    <div className="mt-4 min-h-screen flex items-center justify-center bg-[#1C1C1C] px-4">
+      <div className="w-full max-w-4xl bg-[#232323] rounded-xl shadow-2xl border border-white/5 flex overflow-hidden">
 
-        <div className="hidden md:block p-8 text-center text-white md:w-1/2">
+        <div className="hidden md:flex flex-col justify-center p-10 md:w-1/2 bg-gradient-to-br from-[#1a2b0e] to-[#232323] border-r border-white/5">
+          <span className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-[#99FF00] text-black font-bold">
+            A
+          </span>
+          <h3 className="text-2xl font-semibold text-white leading-snug">
+            Turn your notes into a living knowledge graph.
+          </h3>
+          <p className="mt-3 text-sm text-gray-400">
+            Paste in text and let AutoReason extract entities and
+            relationships automatically, building a graph you can keep
+            growing over time.
+          </p>
         </div>
 
         <div className="w-full p-8 md:w-1/2">
@@ -67,8 +81,8 @@ const SignUp = () => {
             </h2>
 
             <p className="text-sm text-gray-400">
-              Create your account and start using state-of-the-art document
-              signing. Open and beautiful signing is within your grasp.
+              Free to start. Your graphs stay tied to your account, not just
+              this browser.
             </p>
           </div>
 

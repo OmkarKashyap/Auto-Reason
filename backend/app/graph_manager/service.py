@@ -45,6 +45,17 @@ async def get_owned_graph(
     return graph
 
 
+async def delete_graph(session: AsyncSession, graph_id: uuid.UUID, owner_type: str, owner_id: str) -> None:
+    result = await session.execute(
+        select(Graph).where(Graph.id == graph_id, Graph.owner_type == owner_type, Graph.owner_id == owner_id)
+    )
+    graph = result.scalar_one_or_none()
+    if graph is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Graph not found.")
+    await session.delete(graph)
+    await session.commit()
+
+
 async def merge_extraction_into_graph(
     session: AsyncSession, graph: Graph, extraction: ExtractionResult
 ) -> Graph:

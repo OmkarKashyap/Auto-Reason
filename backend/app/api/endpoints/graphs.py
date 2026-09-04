@@ -6,7 +6,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.dependencies import Owner, get_current_owner, get_db_session
 from app.core.config import settings
 from app.core.rate_limit import process_text_limiter
-from app.graph_manager.service import create_graph, get_owned_graph, list_graphs_for_owner, merge_extraction_into_graph
+from app.graph_manager.service import (
+    create_graph,
+    delete_graph,
+    get_owned_graph,
+    list_graphs_for_owner,
+    merge_extraction_into_graph,
+)
 from app.llm.factory import get_llm_provider
 from app.schemas.graph import CreateGraphRequest, EdgeOut, GraphDetail, GraphSummary, NodeOut, ProcessTextRequest
 
@@ -61,6 +67,15 @@ async def get_graph_detail(
 ):
     graph = await get_owned_graph(session, graph_id, owner.type, owner.id)
     return _to_detail(graph)
+
+
+@router.delete("/{graph_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_graph_endpoint(
+    graph_id: uuid.UUID,
+    owner: Owner = Depends(get_current_owner),
+    session: AsyncSession = Depends(get_db_session),
+):
+    await delete_graph(session, graph_id, owner.type, owner.id)
 
 
 @router.post("/{graph_id}/process-text", response_model=GraphDetail)

@@ -15,3 +15,10 @@ class LoginRequest(BaseModel):
 class AuthResponse(BaseModel):
     message: str
     userId: str
+
+
+class MeResponse(BaseModel):
+    type: str  # "user" | "anonymous"
+    id: str
+    fullName: str | None = None
+    email: str | None = None

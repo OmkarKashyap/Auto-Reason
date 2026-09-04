@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { login } from "../lib/api";
+import { useAuthStore } from "../store/authStore";
 
 const SignIn = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -14,6 +15,7 @@ const SignIn = () => {
   const [isLoading, setIsLoading] = useState(false);
 
   const router = useRouter();
+  const refreshAuth = useAuthStore((state) => state.refresh);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -24,6 +26,7 @@ const SignIn = () => {
 
     try {
       await login({ email, password });
+      await refreshAuth();
 
       setSuccessMessage("Sign in successful!");
       router.push("/dashboard");
@@ -40,8 +43,8 @@ const SignIn = () => {
   };
 
   return (
-    <div className="mt-18 min-h-screen flex items-center justify-center bg-[#1C1C1C]">
-      <div className="w-full max-w-md p-6 space-y-6 bg-[#232323] rounded-lg shadow-xl">
+    <div className="mt-18 min-h-screen flex items-center justify-center bg-[#1C1C1C] px-4">
+      <div className="w-full max-w-md p-6 space-y-6 bg-[#232323] rounded-xl shadow-2xl border border-white/5">
         <div className="text-center space-y-2">
           <h2 className="text-3xl font-semibold text-white">Sign in</h2>
 

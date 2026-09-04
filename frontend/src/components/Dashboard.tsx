@@ -103,17 +103,17 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="flex flex-col h-full text-gray-900 dark:text-gray-100">
-      <div className="relative flex-1 mb-4 overflow-hidden border border-gray-200 rounded-lg shadow-inner bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-850 dark:border-gray-700 min-h-[300px]">
+    <div className="flex flex-col h-full text-gray-100">
+      <div className="relative flex-1 mb-4 overflow-hidden border border-white/10 rounded-xl shadow-inner bg-[#161616] min-h-[300px]">
         {isLoading && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm">
-            <p>Loading...</p>
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-[#161616]/80 backdrop-blur-sm">
+            <p className="text-sm text-gray-300">Loading...</p>
           </div>
         )}
 
         {error && !isLoading && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center p-4 bg-red-50 dark:bg-red-900/30">
-            <p className="text-red-600 dark:text-red-300">
+          <div className="absolute inset-0 z-10 flex items-center justify-center p-4 bg-red-950/40">
+            <p className="text-sm text-red-300">
               {error}
             </p>
           </div>
@@ -134,7 +134,7 @@ export default function Dashboard() {
 
         {!isLoading && !error && !currentGraphId && (
           <div className="flex items-center justify-center h-full">
-            <p className="text-gray-500 dark:text-gray-400">
+            <p className="text-sm text-gray-500">
               Select a graph from the sidebar, or create a new one to get
               started.
             </p>
@@ -142,8 +142,8 @@ export default function Dashboard() {
         )}
       </div>
 
-      <div className="p-4 bg-gray-200 rounded-lg dark:bg-gray-800">
-        <TextInput onSubmit={handleTextInput} />
+      <div className="p-3 bg-[#1a1a1a] border border-white/10 rounded-xl">
+        <TextInput onSubmit={handleTextInput} disabled={isLoading} />
       </div>
     </div>
   );

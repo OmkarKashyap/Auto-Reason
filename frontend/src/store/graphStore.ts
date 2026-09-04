@@ -7,6 +7,7 @@ interface GraphState {
   currentGraphId: string | null;
   setGraphs: (graphs: GraphSummary[]) => void;
   addGraphToList: (graph: GraphSummary) => void;
+  removeGraphFromList: (id: string) => void;
   setCurrentGraphId: (id: string | null) => void;
   isLoadingGraphs: boolean;
   setIsLoadingGraphs: (loading: boolean) => void;
@@ -20,6 +21,11 @@ export const useGraphStore = create<GraphState>((set) => ({
   addGraphToList: (graph) =>
     set((state) => ({
       graphs: state.graphs.some((g) => g.id === graph.id) ? state.graphs : [graph, ...state.graphs],
+    })),
+  removeGraphFromList: (id) =>
+    set((state) => ({
+      graphs: state.graphs.filter((g) => g.id !== id),
+      currentGraphId: state.currentGraphId === id ? null : state.currentGraphId,
     })),
   setCurrentGraphId: (id) => set({ currentGraphId: id }),
   setIsLoadingGraphs: (loading) => set({ isLoadingGraphs: loading }),

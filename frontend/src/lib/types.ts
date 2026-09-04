@@ -37,3 +37,10 @@ export interface GraphDetail extends GraphData {
 export interface ApiErrorResponse {
   detail: string;
 }
+
+export interface Owner {
+  type: 'user' | 'anonymous';
+  id: string;
+  fullName?: string | null;
+  email?: string | null;
+}
