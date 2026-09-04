@@ -9,12 +9,20 @@ import cytoscape, { Core, ElementDefinition, LayoutOptions } from 'cytoscape';
 
 import { GraphData, GraphNode, GraphEdge } from '@/lib/types';
 
+interface HighlightIds {
+  nodes: string[];
+  edges: string[];
+}
+
 interface GraphDisplayProps {
   graphData: GraphData;
   onEdgeSelect?: (edge: GraphEdge) => void;
+  highlightIds?: HighlightIds;
 }
 
-const GraphDisplay: React.FC<GraphDisplayProps> = ({ graphData, onEdgeSelect }) => {
+const HIGHLIGHT_DURATION_MS = 2500;
+
+const GraphDisplay: React.FC<GraphDisplayProps> = ({ graphData, onEdgeSelect, highlightIds }) => {
   const onEdgeSelectRef = useRef(onEdgeSelect);
   onEdgeSelectRef.current = onEdgeSelect;
   const cyContainerRef = useRef<HTMLDivElement>(null);
@@ -22,6 +30,7 @@ const GraphDisplay: React.FC<GraphDisplayProps> = ({ graphData, onEdgeSelect }) 
   const cyRef = useRef<Core | null>(null);
   // Store layout reference if needed for dynamic updates
   const layoutRef = useRef<cytoscape.Layouts | null>(null);
+  const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!cyContainerRef.current) return;
@@ -123,7 +132,27 @@ const GraphDisplay: React.FC<GraphDisplayProps> = ({ graphData, onEdgeSelect }) 
                     'target-arrow-color': '#3B82F6',
                     'width': 2.5
                  }
-             }
+             },
+            { // Transient highlight for newly-added nodes (fades out after HIGHLIGHT_DURATION_MS)
+                selector: 'node.highlight-new',
+                style: {
+                    'background-color': '#F59E0B', // amber-500
+                    'border-color': '#B45309', // amber-700
+                    'border-width': 3,
+                    'transition-property': 'background-color, border-color, border-width',
+                    'transition-duration': 600,
+                }
+            },
+            { // Transient highlight for newly-added edges
+                selector: 'edge.highlight-new',
+                style: {
+                    'line-color': '#F59E0B',
+                    'target-arrow-color': '#F59E0B',
+                    'width': 3,
+                    'transition-property': 'line-color, target-arrow-color, width',
+                    'transition-duration': 600,
+                }
+            }
         ],
         // Initial layout is run
         layout: layoutOptions,
@@ -179,8 +208,33 @@ const GraphDisplay: React.FC<GraphDisplayProps> = ({ graphData, onEdgeSelect }) 
          }, { duration: 500 });
     }
 
+    // Briefly highlight newly-added nodes/edges so incremental growth is
+    // visible instead of hidden by the full-graph re-layout above.
+    if (highlightTimeoutRef.current) {
+        clearTimeout(highlightTimeoutRef.current);
+        highlightTimeoutRef.current = null;
+    }
+    if (cyRef.current && highlightIds && (highlightIds.nodes.length || highlightIds.edges.length)) {
+        const cy = cyRef.current;
+        const highlighted = cy.collection();
+        [...highlightIds.nodes, ...highlightIds.edges].forEach((id) => {
+            const el = cy.getElementById(id);
+            if (el.length) highlighted.merge(el);
+        });
+        if (highlighted.length) {
+            highlighted.addClass('highlight-new');
+            highlightTimeoutRef.current = setTimeout(() => {
+                highlighted.removeClass('highlight-new');
+            }, HIGHLIGHT_DURATION_MS);
+        }
+    }
+
     // Cleanup function (important!)
     return () => {
+        if (highlightTimeoutRef.current) {
+            clearTimeout(highlightTimeoutRef.current);
+            highlightTimeoutRef.current = null;
+        }
         // Currently, we don't destroy the instance on data change, only update.
         // Destroy only if the component truly unmounts permanently.
         console.log("GraphDisplay cleanup effect - Instance might persist");
@@ -188,7 +242,7 @@ const GraphDisplay: React.FC<GraphDisplayProps> = ({ graphData, onEdgeSelect }) 
         // cyRef.current = null;
     };
 
-  }, [graphData]); // Effect dependencies: re-run only when graphData changes
+  }, [graphData, highlightIds]); // Re-run when data changes or a new highlight batch arrives
 
   // Render the container div
   return <div ref={cyContainerRef} className="w-full h-full bg-inherit" />; // Use Tailwind classes

@@ -27,12 +27,18 @@ def set_identity_cookie(response: Response, owner_type: str, owner_id: str) -> N
     """Sign and set the identity cookie. Used both for anonymous session issuance
     and for login/register, so both identity kinds flow through one mechanism."""
     signed = _serializer.dumps({"type": owner_type, "id": owner_id})
+    is_production = settings.env == "production"
     response.set_cookie(
         IDENTITY_COOKIE_NAME,
         signed,
         httponly=True,
-        samesite="lax",
-        secure=settings.env == "production",
+        # SameSite=None is required for the cookie to survive a cross-site fetch
+        # (frontend and backend on different domains in production, e.g. Vercel +
+        # Render). Browsers only accept SameSite=None paired with Secure, hence
+        # both are conditioned on the same flag. Lax is fine locally where
+        # frontend/backend differ only by port (same-site).
+        samesite="none" if is_production else "lax",
+        secure=is_production,
         max_age=IDENTITY_COOKIE_MAX_AGE,
     )
 

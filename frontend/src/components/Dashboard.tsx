@@ -26,6 +26,10 @@ export default function Dashboard() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedEdge, setSelectedEdge] = useState<GraphEdge | null>(null);
+  const [highlightIds, setHighlightIds] = useState<{ nodes: string[]; edges: string[] }>({
+    nodes: [],
+    edges: [],
+  });
 
   const loadGraph = useCallback(async (graphId: string) => {
     setIsLoading(true);
@@ -47,6 +51,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     setSelectedEdge(null);
+    setHighlightIds({ nodes: [], edges: [] });
     if (currentGraphId) {
       loadGraph(currentGraphId);
     } else {
@@ -62,6 +67,9 @@ export default function Dashboard() {
     setIsLoading(true);
     setError(null);
 
+    const previousNodeIds = new Set(graphData.nodes.map((n) => n.id));
+    const previousEdgeIds = new Set(graphData.edges.map((e) => e.id));
+
     try {
       let graphId = currentGraphId;
       let isNewGraph = false;
@@ -72,6 +80,10 @@ export default function Dashboard() {
       }
       const updatedGraph = await processText(graphId, text);
       setGraphData(updatedGraph);
+      setHighlightIds({
+        nodes: updatedGraph.nodes.filter((n) => !previousNodeIds.has(n.id)).map((n) => n.id),
+        edges: updatedGraph.edges.filter((e) => !previousEdgeIds.has(e.id)).map((e) => e.id),
+      });
       if (isNewGraph) {
         // Set graph data first (above) so the store update below doesn't
         // trigger a redundant loadGraph() fetch that briefly shows an
@@ -109,7 +121,7 @@ export default function Dashboard() {
 
         {!isLoading && !error && currentGraphId && (
           <>
-            <GraphDisplay graphData={graphData} onEdgeSelect={setSelectedEdge} />
+            <GraphDisplay graphData={graphData} onEdgeSelect={setSelectedEdge} highlightIds={highlightIds} />
             {selectedEdge && (
               <EdgeDetail
                 edge={selectedEdge}
