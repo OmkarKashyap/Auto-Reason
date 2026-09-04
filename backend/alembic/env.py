@@ -8,11 +8,12 @@ from alembic import context
 
 from app.core.config import settings
 from app.db.models import Base
+from app.db.session import build_connect_args, normalize_database_url
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
-config.set_main_option("sqlalchemy.url", settings.database_url)
+config.set_main_option("sqlalchemy.url", normalize_database_url(settings.database_url))
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
@@ -58,6 +59,7 @@ async def run_migrations_online() -> None:
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
         poolclass=pool.NullPool,
+        connect_args=build_connect_args(settings.database_url),
     )
 
     async with connectable.connect() as connection:
