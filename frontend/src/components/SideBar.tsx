@@ -1,10 +1,11 @@
 // src/components/client/Sidebar.tsx
 'use client';
 
-import { createGraph, listGraphs } from '@/lib/api';
+import { createGraph, listGraphs, logout } from '@/lib/api';
 import { GraphSummary } from '@/lib/types';
 import { useGraphStore } from '@/store/graphStore';
 import { ArrowPathIcon, PlusIcon } from '@heroicons/react/24/solid';
+import { useRouter } from 'next/navigation';
 import React, { useCallback, useEffect, useState } from 'react';
 
 export default function Sidebar() {
@@ -17,6 +18,7 @@ export default function Sidebar() {
     isLoadingGraphs,
     setIsLoadingGraphs,
   } = useGraphStore();
+  const router = useRouter();
 
   const [newGraphName, setNewGraphName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
@@ -64,6 +66,18 @@ export default function Sidebar() {
       }
     } finally {
       setIsCreating(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch (err) {
+      console.error('Logout failed:', err);
+    } finally {
+      setGraphs([]);
+      setCurrentGraphId(null);
+      router.push('/');
     }
   };
 
@@ -147,6 +161,15 @@ export default function Sidebar() {
             Create one above to get started!
           </p>
         )}
+      </div>
+
+      <div className="pt-4 mt-auto border-t border-gray-200 dark:border-gray-700">
+        <button
+          onClick={handleLogout}
+          className="w-full text-sm text-left text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400"
+        >
+          Sign out
+        </button>
       </div>
     </aside>
   );

@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, ForeignKey, Index, String, Text, UniqueConstraint
+from sqlalchemy import DateTime, Float, ForeignKey, Index, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -19,13 +19,14 @@ def _now() -> datetime:
 
 
 class User(Base):
-    """A signed-in (Firebase-authenticated) user. Anonymous visitors never get a row here."""
+    """A user who registered for a persistent account. Anonymous visitors never get a row here."""
 
     __tablename__ = "users"
 
-    id: Mapped[str] = mapped_column(String, primary_key=True)  # Firebase uid
-    email: Mapped[str | None] = mapped_column(String, nullable=True)
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    email: Mapped[str | None] = mapped_column(String, nullable=True, unique=True)
     full_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    password_hash: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
 
@@ -36,7 +37,7 @@ class Graph(Base):
     name: Mapped[str] = mapped_column(String, nullable=False)
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    # owner_type is "user" (owner_id = Firebase uid) or "anonymous" (owner_id = session id).
+    # owner_type is "user" (owner_id = users.id) or "anonymous" (owner_id = session id).
     owner_type: Mapped[str] = mapped_column(String, nullable=False)
     owner_id: Mapped[str] = mapped_column(String, nullable=False)
 
@@ -76,6 +77,9 @@ class Edge(Base):
     source_node_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("nodes.id", ondelete="CASCADE"))
     target_node_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("nodes.id", ondelete="CASCADE"))
     label: Mapped[str] = mapped_column(String, nullable=False)
+    evidence: Mapped[str | None] = mapped_column(Text, nullable=True)
+    confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    source: Mapped[str] = mapped_column(String, nullable=False, default="user-provided text", server_default="user-provided text")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
     graph: Mapped[Graph] = relationship(back_populates="edges")

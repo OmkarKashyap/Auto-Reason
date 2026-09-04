@@ -1,21 +1,21 @@
 import logging
 import uuid
 
-from fastapi import HTTPException, Request, Response, status
+from fastapi import Request, Response
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from pydantic import BaseModel
 
-from app.core.config import firebase_enabled, settings
+from app.core.config import settings
 from app.db.session import get_db_session  # re-exported for endpoint imports
 
 logger = logging.getLogger(__name__)
 
-ANON_COOKIE_NAME = "ar_session"
-ANON_COOKIE_MAX_AGE = 60 * 60 * 24 * 365  # 1 year
+IDENTITY_COOKIE_NAME = "ar_session"
+IDENTITY_COOKIE_MAX_AGE = 60 * 60 * 24 * 365  # 1 year
 
 _serializer = URLSafeTimedSerializer(settings.secret_key, salt="anon-session")
 
-__all__ = ["get_db_session", "get_current_owner", "Owner"]
+__all__ = ["get_db_session", "get_current_owner", "get_anonymous_id_if_present", "set_identity_cookie", "Owner"]
 
 
 class Owner(BaseModel):
@@ -23,42 +23,59 @@ class Owner(BaseModel):
     id: str
 
 
-async def get_current_owner(request: Request, response: Response) -> Owner:
-    """Resolve the caller's identity.
-
-    Prefers a verified Firebase ID token (signed-in user); otherwise falls back
-    to a signed anonymous session cookie, issuing one on first visit. This is
-    what lets an anonymous visitor use the app with no login wall.
-    """
-    auth_header = request.headers.get("Authorization")
-    if auth_header and auth_header.startswith("Bearer ") and firebase_enabled():
-        from firebase_admin import auth as firebase_auth
-
-        token = auth_header.split("Bearer ", 1)[1]
-        try:
-            decoded = firebase_auth.verify_id_token(token, check_revoked=True)
-        except Exception as exc:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired authentication token."
-            ) from exc
-        return Owner(type="user", id=decoded["uid"])
-
-    raw_cookie = request.cookies.get(ANON_COOKIE_NAME)
-    if raw_cookie:
-        try:
-            session_id = _serializer.loads(raw_cookie, max_age=ANON_COOKIE_MAX_AGE)
-            return Owner(type="anonymous", id=session_id)
-        except (BadSignature, SignatureExpired):
-            logger.info("Rejected invalid/expired anonymous session cookie.")
-
-    session_id = str(uuid.uuid4())
-    signed = _serializer.dumps(session_id)
+def set_identity_cookie(response: Response, owner_type: str, owner_id: str) -> None:
+    """Sign and set the identity cookie. Used both for anonymous session issuance
+    and for login/register, so both identity kinds flow through one mechanism."""
+    signed = _serializer.dumps({"type": owner_type, "id": owner_id})
     response.set_cookie(
-        ANON_COOKIE_NAME,
+        IDENTITY_COOKIE_NAME,
         signed,
         httponly=True,
         samesite="lax",
         secure=settings.env == "production",
-        max_age=ANON_COOKIE_MAX_AGE,
+        max_age=IDENTITY_COOKIE_MAX_AGE,
     )
+
+
+def _decode_identity_cookie(request: Request) -> Owner | None:
+    raw_cookie = request.cookies.get(IDENTITY_COOKIE_NAME)
+    if not raw_cookie:
+        return None
+    try:
+        payload = _serializer.loads(raw_cookie, max_age=IDENTITY_COOKIE_MAX_AGE)
+    except (BadSignature, SignatureExpired):
+        logger.info("Rejected invalid/expired identity cookie.")
+        return None
+
+    if isinstance(payload, dict) and "type" in payload and "id" in payload:
+        return Owner(type=payload["type"], id=payload["id"])
+    if isinstance(payload, str):
+        # Legacy cookie format from before identity unification: a bare anonymous session id.
+        return Owner(type="anonymous", id=payload)
+    return None
+
+
+async def get_current_owner(request: Request, response: Response) -> Owner:
+    """Resolve the caller's identity from a single signed cookie.
+
+    The cookie carries either an anonymous session id (issued here on first
+    visit) or an authenticated user id (set by /api/login or /api/register) -
+    both flow through the same mechanism, so there is only one identity path.
+    """
+    owner = _decode_identity_cookie(request)
+    if owner is not None:
+        return owner
+
+    session_id = str(uuid.uuid4())
+    set_identity_cookie(response, "anonymous", session_id)
     return Owner(type="anonymous", id=session_id)
+
+
+def get_anonymous_id_if_present(request: Request) -> str | None:
+    """Peek at the caller's current anonymous session id, if any, without
+    issuing a new cookie. Used by login/register to upgrade anonymous graphs
+    to the newly-identified account."""
+    owner = _decode_identity_cookie(request)
+    if owner is not None and owner.type == "anonymous":
+        return owner.id
+    return None

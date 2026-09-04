@@ -19,7 +19,18 @@ def _to_detail(graph) -> GraphDetail:
         name=graph.name,
         summary=graph.summary,
         nodes=[NodeOut(id=n.id, label=n.label, description=n.description) for n in graph.nodes],
-        edges=[EdgeOut(id=e.id, source=e.source_node_id, target=e.target_node_id, label=e.label) for e in graph.edges],
+        edges=[
+            EdgeOut(
+                id=e.id,
+                source=e.source_node_id,
+                target=e.target_node_id,
+                label=e.label,
+                evidence=e.evidence,
+                confidence=e.confidence,
+                source_label=e.source,
+            )
+            for e in graph.edges
+        ],
     )
 
 

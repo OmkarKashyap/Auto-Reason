@@ -1,22 +1,14 @@
 import logging
-from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.endpoints import auth, graphs
-from app.core.config import initialize_firebase_admin, settings
+from app.core.config import settings
 
 logging.basicConfig(level=logging.INFO)
 
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    initialize_firebase_admin()  # best-effort; anonymous flow works regardless
-    yield
-
-
-app = FastAPI(title="Auto-Reason API", lifespan=lifespan)
+app = FastAPI(title="Auto-Reason API")
 
 app.add_middleware(
     CORSMiddleware,

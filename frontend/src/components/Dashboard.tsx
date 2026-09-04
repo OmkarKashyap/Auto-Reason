@@ -1,9 +1,10 @@
 'use client';
 
-import { GraphData } from '@/lib/types';
+import { GraphData, GraphEdge } from '@/lib/types';
 import { useGraphStore } from '@/store/graphStore';
 import { useCallback, useEffect, useState } from 'react';
 import { createGraph, getGraph, processText } from '../lib/api';
+import EdgeDetail from './EdgeDetail';
 import GraphDisplay from './GraphDisplay';
 import TextInput from './TextInput';
 
@@ -24,6 +25,7 @@ export default function Dashboard() {
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedEdge, setSelectedEdge] = useState<GraphEdge | null>(null);
 
   const loadGraph = useCallback(async (graphId: string) => {
     setIsLoading(true);
@@ -44,6 +46,7 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
+    setSelectedEdge(null);
     if (currentGraphId) {
       loadGraph(currentGraphId);
     } else {
@@ -105,7 +108,16 @@ export default function Dashboard() {
         )}
 
         {!isLoading && !error && currentGraphId && (
-          <GraphDisplay graphData={graphData} />
+          <>
+            <GraphDisplay graphData={graphData} onEdgeSelect={setSelectedEdge} />
+            {selectedEdge && (
+              <EdgeDetail
+                edge={selectedEdge}
+                nodes={graphData.nodes}
+                onClose={() => setSelectedEdge(null)}
+              />
+            )}
+          </>
         )}
 
         {!isLoading && !error && !currentGraphId && (

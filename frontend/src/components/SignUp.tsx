@@ -38,7 +38,7 @@ const SignUp = () => {
 
       setSuccessMessage("Account created successfully!");
 
-      router.push("/signin");
+      router.push("/dashboard");
     } catch (error: unknown) {
       console.error("Sign up failed:", error);
 

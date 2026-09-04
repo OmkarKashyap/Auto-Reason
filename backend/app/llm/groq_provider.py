@@ -13,7 +13,8 @@ _JSON_FORMAT_INSTRUCTIONS = (
     "Respond with a single JSON object and nothing else, matching this shape exactly: "
     '{"summary": "...", '
     '"entities": [{"name": "...", "description": "..." | null}], '
-    '"relationships": [{"source": "...", "target": "...", "relation": "..."}]}'
+    '"relationships": [{"source": "...", "target": "...", "relation": "...", '
+    '"evidence": "...", "confidence": 0.0-1.0}]}'
 )
 
 

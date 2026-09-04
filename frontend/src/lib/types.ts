@@ -12,6 +12,9 @@ export interface GraphEdge {
   source: string; // GraphNode.id
   target: string; // GraphNode.id
   label: string;
+  evidence?: string | null;
+  confidence?: number | null;
+  source_label: string;
 }
 
 export interface GraphData {

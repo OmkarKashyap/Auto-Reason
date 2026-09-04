@@ -6,5 +6,5 @@ asyncpg
 alembic
 anthropic
 groq
-firebase-admin
+bcrypt
 itsdangerous

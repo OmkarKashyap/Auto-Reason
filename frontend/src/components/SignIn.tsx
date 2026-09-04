@@ -1,11 +1,9 @@
 "use client";
 
-import { getAuth, signInWithEmailAndPassword } from "firebase/auth";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { app } from "../config/firebaseConfig";
-import { signIn as signInWithBackend } from "../lib/api";
+import { login } from "../lib/api";
 
 const SignIn = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -25,28 +23,11 @@ const SignIn = () => {
     setIsLoading(true);
 
     try {
-      const auth = getAuth(app);
-
-      const userCredential = await signInWithEmailAndPassword(
-        auth,
-        email,
-        password
-      );
-
-      const user = userCredential.user;
-
-      console.log("Firebase Sign In successful:", user);
-
-      const idToken = await user.getIdToken();
-
-      await signInWithBackend(idToken);
+      await login({ email, password });
 
       setSuccessMessage("Sign in successful!");
-
       router.push("/dashboard");
     } catch (signInError: unknown) {
-      console.error("Sign in failed:", signInError);
-
       const message =
         signInError instanceof Error
           ? signInError.message
@@ -62,9 +43,7 @@ const SignIn = () => {
     <div className="mt-18 min-h-screen flex items-center justify-center bg-[#1C1C1C]">
       <div className="w-full max-w-md p-6 space-y-6 bg-[#232323] rounded-lg shadow-xl">
         <div className="text-center space-y-2">
-          <h2 className="text-3xl font-semibold text-white">
-            Sign in
-          </h2>
+          <h2 className="text-3xl font-semibold text-white">Sign in</h2>
 
           <p className="text-gray-400">
             Welcome back, we are happy to see you again.
@@ -72,16 +51,10 @@ const SignIn = () => {
         </div>
 
         <form className="space-y-4" onSubmit={handleSubmit}>
-          {error && (
-            <div className="text-red-500 text-sm">
-              {error}
-            </div>
-          )}
+          {error && <div className="text-red-500 text-sm">{error}</div>}
 
           {successMessage && (
-            <div className="text-green-500 text-sm">
-              {successMessage}
-            </div>
+            <div className="text-green-500 text-sm">{successMessage}</div>
           )}
 
           <div className="space-y-1">
@@ -128,9 +101,7 @@ const SignIn = () => {
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 className="absolute right-3 top-1/2 transform -translate-y-1/2 focus:outline-none"
-                aria-label={
-                  showPassword ? "Hide password" : "Show password"
-                }
+                aria-label={showPassword ? "Hide password" : "Show password"}
               >
                 {showPassword ? (
                   <EyeIcon className="w-5 h-5 text-gray-500" />
@@ -139,15 +110,6 @@ const SignIn = () => {
                 )}
               </button>
             </div>
-          </div>
-
-          <div className="text-right">
-            <Link
-              href="/forgot-password"
-              className="text-sm text-gray-400 hover:text-[#99FF00] transition-colors"
-            >
-              Forgot your password?
-            </Link>
           </div>
 
           <button
@@ -159,68 +121,13 @@ const SignIn = () => {
           </button>
         </form>
 
-        <div className="relative py-4">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-gray-600" />
-          </div>
-
-          <div className="relative flex justify-center text-xs uppercase">
-            <span className="px-3 bg-[#232323] text-gray-400">
-              or continue with
-            </span>
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <button
-            type="button"
-            className="w-full px-4 py-2 bg-[#2C2C2C] hover:bg-[#333333] border border-gray-600 rounded-md text-white flex items-center justify-center space-x-3 transition-colors"
-          >
-            <svg
-              viewBox="0 0 48 48"
-              width="24"
-              height="24"
-              aria-hidden="true"
-            >
-              <defs>
-                <clipPath id="google-clip">
-                  <path d="M44.5 20H24v8h11.3c-.6 2.3-2.3 4-5.3 4-4.1 0-7.4-3.3-7.4-7.4s3.3-7.4 7.4-7.4c1.8 0 3.1.6 4.1 1.6l3-3.1c-3.1-2.9-7.1-4.7-11.1-4.7C7 5.1 0 12.1 0 20.1s7 15 15 15c4.1 0 7.8-1.6 10.4-4.3l-2.7-2.7c-1.7 1.6-4.1 2.6-6.9 2.6-3.5 0-6.3-2.9-6.3-6.4s2.8-6.4 6.3-6.4c2.1 0 3.9.8 5.1 1.9 1.1-.8 2.5-1.6 3.8-2.1l-3.1 3.1c-3 2.9-6.7 4.7-10.7 4.7-8.8 0-16-7.1-16-16s7.2-16 16-16c4.1 0 7.8 1.6 10.3 4.1 2.4 2.4 3.9 5.5 3.9 9.3 0 3.7-1.4 6.9-3.9 9.3z" />
-                </clipPath>
-              </defs>
-
-              <g clipPath="url(#google-clip)">
-                <path
-                  fill="#4285f4"
-                  d="M44.5 20H24v8h11.3c-.6 2.3-2.3 4-5.3 4-4.1 0-7.4-3.3-7.4-7.4s3.3-7.4 7.4-7.4c1.8 0 3.1.6 4.1 1.6l3-3.1c-3.1-2.9-7.1-4.7-11.1-4.7C7 5.1 0 12.1 0 20.1s7 15 15 15c4.1 0 7.8-1.6 10.4-4.3l-2.7-2.7c-1.7 1.6-4.1 2.6-6.9 2.6-3.5 0-6.3-2.9-6.3-6.4s2.8-6.4 6.3-6.4c2.1 0 3.9.8 5.1 1.9 1.1-.8 2.5-1.6 3.8-2.1l-3.1 3.1c-3 2.9-6.7 4.7-10.7 4.7-8.8 0-16-7.1-16-16s7.2-16 16-16c4.1 0 7.8 1.6 10.3 4.1 2.4 2.4 3.9 5.5 3.9 9.3 0 3.7-1.4 6.9-3.9 9.3z"
-                />
-              </g>
-            </svg>
-
-            <span>Google</span>
-          </button>
-
-          <button
-            type="button"
-            className="w-full px-4 py-2 bg-[#2C2C2C] hover:bg-[#333333] border border-gray-600 rounded-md text-white flex items-center justify-center space-x-3 transition-colors"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M2 18v3c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2v-3s-3-2-3-5V7c0-5-3-6-6-6S6 2 6 7v6c0 3-3 5-3 5z" />
-              <circle cx="10" cy="10" r="2" />
-            </svg>
-
-            <span>Passkey</span>
-          </button>
+        <div className="mt-4 text-center">
+          <p className="text-xs text-gray-400">
+            Don&apos;t have an account?{" "}
+            <Link href="/signup" className="text-[#99FF00] hover:underline">
+              Sign Up
+            </Link>
+          </p>
         </div>
       </div>
     </div>

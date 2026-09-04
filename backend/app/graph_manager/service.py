@@ -79,12 +79,22 @@ async def merge_extraction_into_graph(
     }
 
     for rel in extraction.relationships:
-        source = nodes_by_key[normalize_label(rel.source)]
-        target = nodes_by_key[normalize_label(rel.target)]
-        key = (source.id, target.id, rel.relation)
+        source_node = nodes_by_key[normalize_label(rel.source)]
+        target_node = nodes_by_key[normalize_label(rel.target)]
+        key = (source_node.id, target_node.id, rel.relation)
         if key in edge_keys:
             continue
-        session.add(Edge(graph_id=graph.id, source_node_id=source.id, target_node_id=target.id, label=rel.relation))
+        session.add(
+            Edge(
+                graph_id=graph.id,
+                source_node_id=source_node.id,
+                target_node_id=target_node.id,
+                label=rel.relation,
+                evidence=rel.evidence,
+                confidence=rel.confidence,
+                source="user-provided text",
+            )
+        )
         edge_keys.add(key)
 
     graph.summary = extraction.summary

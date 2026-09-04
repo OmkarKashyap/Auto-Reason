@@ -11,9 +11,12 @@ import { GraphData, GraphNode, GraphEdge } from '@/lib/types';
 
 interface GraphDisplayProps {
   graphData: GraphData;
+  onEdgeSelect?: (edge: GraphEdge) => void;
 }
 
-const GraphDisplay: React.FC<GraphDisplayProps> = ({ graphData }) => {
+const GraphDisplay: React.FC<GraphDisplayProps> = ({ graphData, onEdgeSelect }) => {
+  const onEdgeSelectRef = useRef(onEdgeSelect);
+  onEdgeSelectRef.current = onEdgeSelect;
   const cyContainerRef = useRef<HTMLDivElement>(null);
   // Store core instance in ref to persist across renders
   const cyRef = useRef<Core | null>(null);
@@ -34,7 +37,10 @@ const GraphDisplay: React.FC<GraphDisplayProps> = ({ graphData }) => {
             id: edge.id || `${edge.source}_${edge.target}_${edge.label || ''}`, // Ensure unique edge ID for Cytoscape
             source: edge.source,
             target: edge.target,
-            label: edge.label /* ...other edge props */
+            label: edge.label,
+            evidence: edge.evidence,
+            confidence: edge.confidence,
+            source_label: edge.source_label,
           },
           group: 'edges' as const, // Explicitly type group
       }))
@@ -139,8 +145,16 @@ const GraphDisplay: React.FC<GraphDisplayProps> = ({ graphData }) => {
             // You could open a detail panel here
         });
          cyRef.current.on('tap', 'edge', (event) => {
-            const edge = event.target;
-            console.log('Tapped edge:', edge.id(), edge.data());
+            const data = event.target.data();
+            onEdgeSelectRef.current?.({
+                id: data.id,
+                source: data.source,
+                target: data.target,
+                label: data.label,
+                evidence: data.evidence,
+                confidence: data.confidence,
+                source_label: data.source_label,
+            });
         });
         cyRef.current.on('viewport', () => {
              // console.log('Viewport changed (zoom/pan)');

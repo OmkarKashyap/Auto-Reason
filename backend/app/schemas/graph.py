@@ -25,6 +25,9 @@ class EdgeOut(BaseModel):
     source: uuid.UUID
     target: uuid.UUID
     label: str
+    evidence: str | None = None
+    confidence: float | None = None
+    source_label: str = Field(default="user-provided text")
 
     model_config = {"from_attributes": True}
 

@@ -1,33 +1,17 @@
-import { getAuth } from 'firebase/auth';
-import { app } from '../config/firebaseConfig';
 import { GraphDetail, GraphSummary } from './types';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
 
-async function getAuthToken(): Promise<string | null> {
-  const currentUser = getAuth(app).currentUser;
-  if (!currentUser) return null;
-  try {
-    return await currentUser.getIdToken();
-  } catch (error) {
-    console.error('Error getting auth token:', error);
-    return null;
-  }
-}
-
 async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const token = await getAuthToken();
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-  Object.assign(headers, options.headers); // explicit headers win over the auto-attached token
-
-  // credentials: 'include' is required so the anonymous session cookie the
-  // backend issues on first visit is sent back on every subsequent request.
+  // credentials: 'include' is required so the identity cookie the backend
+  // issues (anonymous session, or the account cookie after login/register)
+  // is sent back on every subsequent request.
   const response = await fetch(`${BASE_URL}${endpoint}`, {
     ...options,
-    headers,
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
     credentials: 'include',
   });
 
@@ -77,10 +61,13 @@ export function registerUser(data: { fullName: string; email: string; password: 
   });
 }
 
-export function signIn(idToken: string) {
-  return apiFetch<{ message: string; userId: string }>('/api/signin', {
+export function login(data: { email: string; password: string }) {
+  return apiFetch<{ message: string; userId: string }>('/api/login', {
     method: 'POST',
-    headers: { Authorization: `Bearer ${idToken}` },
-    body: JSON.stringify({}),
+    body: JSON.stringify(data),
   });
+}
+
+export function logout() {
+  return apiFetch<{ message: string }>('/api/logout', { method: 'POST' });
 }
