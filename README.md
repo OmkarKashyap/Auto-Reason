@@ -14,6 +14,7 @@ Live at [auto-reason.vercel.app](https://auto-reason.vercel.app).
 | Backend | FastAPI (async), SQLAlchemy 2 (async) + asyncpg, Alembic migrations |
 | Database | PostgreSQL 16 |
 | LLM extraction | Pluggable provider - Groq or Anthropic (Claude), selected via `LLM_PROVIDER` |
+| Retrieval | Local embeddings (`sentence-transformers`, `all-MiniLM-L6-v2`) for GraphRAG-style Q&A - no external API, runs on CPU |
 | Auth | Signed session cookie. Anonymous by default; email/password accounts upgrade the anonymous session's graphs on sign-up |
 
 ## Hosting
@@ -124,6 +125,7 @@ Three separate env files, one per runtime context:
 | `CORS_ORIGINS` | Comma-separated allowed frontend origin(s) | `http://localhost:3000` |
 | `SECRET_KEY` | Signs the session cookie — set to a long random value | — (required) |
 | `RATE_LIMIT_PER_MINUTE` | Per-owner rate limit on `/process-text` | `10` |
+| `ASK_RATE_LIMIT_PER_MINUTE` | Per-owner rate limit on `/ask` | `10` |
 | `MAX_INPUT_CHARS` | Max characters accepted per text submission | `20000` |
 | `NEXT_PUBLIC_API_BASE_URL` | Backend URL the frontend calls (build-time) | `http://localhost:8000` |
 
@@ -172,6 +174,63 @@ an account when you register or log in. Full interactive docs at `/docs`.
 | `GET` | `/api/graphs/{graph_id}` | Get a graph's nodes and edges |
 | `DELETE` | `/api/graphs/{graph_id}` | Delete a graph |
 | `POST` | `/api/graphs/{graph_id}/process-text` | Extract entities/relationships from submitted text and merge them into the graph |
+| `POST` | `/api/graphs/{graph_id}/ask` | Ask a natural-language question about the graph; answer is grounded in the graph's own evidence, with per-claim citations to specific edges |
+
+## Groundedness, evaluation, and GraphRAG Q&A
+
+Three things exist to make extraction quality checkable rather than just trusted:
+
+**Groundedness verification** — every extracted relationship comes with an `evidence` quote
+the LLM claims is drawn from the source text. `backend/app/groundedness/service.py` checks
+that quote against the actual submitted text (exact match, falling back to fuzzy matching via
+`rapidfuzz`) at extraction time, before the edge is ever stored. The result is saved as
+`grounded` (bool) and `groundedness_score` (0.0-1.0) on the edge and shown as a badge in the
+dashboard's edge detail panel - so a fabricated or hallucinated quote is visibly flagged
+rather than silently trusted.
+
+**Extraction eval harness** — `backend/eval/` holds a small hand-labeled golden dataset
+(`golden_dataset.py`) and a runnable scorer (`run_extraction_eval.py`) that computes
+precision/recall/F1 for entity and relationship extraction against whichever provider/model
+is configured. Run it manually after changing the extraction prompt or switching models:
+
+```bash
+cd backend
+python -m eval.run_extraction_eval
+```
+
+It makes real LLM calls (so it costs API credits) and isn't run in CI - it exists to guide
+manual prompt/model iteration, not to gate every push.
+
+**GraphRAG-style Q&A** — the "Ask" box in the dashboard lets you ask a question about a graph
+and get an answer grounded in its own evidence, not general model knowledge:
+
+1. The question is embedded locally (no API call) and compared via cosine similarity against
+   every node's embedding to find the most relevant seed nodes (`backend/app/rag/retrieval.py`).
+2. The graph is expanded 2 hops out from those seeds (capped at 40 nodes / 80 edges) to build a
+   relevant subgraph.
+3. That subgraph - entity labels/descriptions plus each edge's label, confidence, groundedness,
+   evidence, and id - is handed to the same LLM provider/model used for extraction, with
+   instructions to answer using only that context and cite the specific edge id(s) behind each
+   claim (`backend/app/rag/service.py`).
+4. The dashboard renders the answer with clickable citations that jump straight to the cited
+   edge in the graph view, reusing the existing edge-selection/highlight mechanism.
+
+Node embeddings are computed lazily and cached on first use per graph (`Node.embedding`), so
+older graphs work with no separate backfill step.
+
+## Testing
+
+```bash
+cd backend
+pytest
+```
+
+Needs a Postgres reachable via `DATABASE_URL` with migrations applied (`alembic upgrade head`) -
+the schema uses Postgres-specific types (`UUID`, `ARRAY`), so this isn't SQLite-compatible.
+`backend/tests/` covers the groundedness matcher and RAG retrieval/traversal logic as pure unit
+tests (no DB needed), plus graph merge/dedup behavior against a real database. CI
+(`.github/workflows/backend-tests.yml`) runs the same suite against a Postgres service
+container on every push/PR touching `backend/**`.
 
 ## Project structure
 
@@ -185,20 +244,26 @@ Auto-Reason/
 │   │   ├── core/                # config.py (Settings), rate_limit.py
 │   │   ├── db/                  # models.py (SQLAlchemy), session.py
 │   │   ├── graph_manager/       # service.py — graph create/merge/delete logic
+│   │   ├── groundedness/        # service.py — evidence-quote verification against source text
 │   │   ├── llm/                 # base.py, factory.py, anthropic_provider.py, groq_provider.py
+│   │   ├── rag/                 # embeddings.py, retrieval.py, service.py — GraphRAG Q&A
 │   │   ├── schemas/             # Pydantic request/response models
 │   │   └── main.py
 │   ├── alembic/                 # DB migrations
+│   ├── eval/                    # golden_dataset.py, run_extraction_eval.py — extraction eval harness
+│   ├── tests/                   # pytest suite
 │   ├── Dockerfile
 │   ├── entrypoint.sh            # runs `alembic upgrade head` then starts uvicorn
+│   ├── pytest.ini
 │   └── requirements.txt
 ├── frontend/
 │   ├── src/
 │   │   ├── app/                 # Next.js App Router pages (landing, dashboard, signin, signup)
-│   │   ├── components/          # GraphDisplay, TextInput, Navbar, SideBar, EdgeDetail, etc.
+│   │   ├── components/          # GraphDisplay, TextInput, AskBox, Navbar, SideBar, EdgeDetail, etc.
 │   │   ├── lib/                 # api.ts (backend client), types.ts
 │   │   └── store/                # graphStore.ts, authStore.ts (Zustand)
 │   └── Dockerfile
+├── .github/workflows/            # backend-tests.yml — CI (pytest against a Postgres service container)
 ├── docker-compose.yml
 ├── .env.example
 └── README.md

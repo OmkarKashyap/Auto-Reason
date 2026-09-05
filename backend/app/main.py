@@ -1,14 +1,31 @@
+import asyncio
 import logging
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.endpoints import auth, graphs
 from app.core.config import settings
+from app.rag.embeddings import preload_model
 
 logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Auto-Reason API")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Load the embedding model now, during boot, instead of lazily on the
+    # first /ask request - that first request could otherwise take long
+    # enough (importing torch/sentence-transformers + loading the model) to
+    # exceed a proxy's request timeout and fail outright.
+    logger.info("Preloading embedding model...")
+    await asyncio.to_thread(preload_model)
+    logger.info("Embedding model ready.")
+    yield
+
+
+app = FastAPI(title="Auto-Reason API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

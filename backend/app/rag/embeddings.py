@@ -25,6 +25,18 @@ def _get_model():
     return _model
 
 
+def preload_model() -> None:
+    """Force the embedding model to load now rather than lazily on first use.
+
+    Call this once at app startup (see app/main.py) so the multi-second
+    torch/sentence-transformers import + model load cost is paid during boot,
+    not on the first live /ask request after a deploy/restart - a slow first
+    request risks exceeding the platform's own proxy timeout and looking like
+    a dead connection to the client.
+    """
+    _get_model()
+
+
 def embed_text(text: str) -> list[float]:
     return embed_texts([text])[0]
 
