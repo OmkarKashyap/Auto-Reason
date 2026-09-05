@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.db.models import Edge, Graph, Node
+from app.groundedness.service import check_groundedness
 from app.llm.base import ExtractionResult
 
 
@@ -57,7 +58,7 @@ async def delete_graph(session: AsyncSession, graph_id: uuid.UUID, owner_type: s
 
 
 async def merge_extraction_into_graph(
-    session: AsyncSession, graph: Graph, extraction: ExtractionResult
+    session: AsyncSession, graph: Graph, extraction: ExtractionResult, source_text: str
 ) -> Graph:
     existing_nodes = await session.execute(select(Node).where(Node.graph_id == graph.id))
     nodes_by_key: dict[str, Node] = {
@@ -95,6 +96,7 @@ async def merge_extraction_into_graph(
         key = (source_node.id, target_node.id, rel.relation)
         if key in edge_keys:
             continue
+        grounded, groundedness_score = check_groundedness(rel.evidence, source_text)
         session.add(
             Edge(
                 graph_id=graph.id,
@@ -104,6 +106,8 @@ async def merge_extraction_into_graph(
                 evidence=rel.evidence,
                 confidence=rel.confidence,
                 source="user-provided text",
+                grounded=grounded,
+                groundedness_score=groundedness_score,
             )
         )
         edge_keys.add(key)

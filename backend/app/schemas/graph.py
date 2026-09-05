@@ -28,6 +28,8 @@ class EdgeOut(BaseModel):
     evidence: str | None = None
     confidence: float | None = None
     source_label: str = Field(default="user-provided text")
+    grounded: bool | None = None
+    groundedness_score: float | None = None
 
     model_config = {"from_attributes": True}
 
@@ -46,3 +48,19 @@ class GraphDetail(BaseModel):
     summary: str | None
     nodes: list[NodeOut]
     edges: list[EdgeOut]
+
+
+class AskRequest(BaseModel):
+    question: str = Field(min_length=1)
+
+
+class CitedClaimOut(BaseModel):
+    claim: str
+    edge_ids: list[uuid.UUID]
+
+
+class AskResponse(BaseModel):
+    answer: str
+    claims: list[CitedClaimOut]
+    used_edge_ids: list[uuid.UUID]
+    cited_edges: list[EdgeOut] = Field(default_factory=list)

@@ -4,6 +4,7 @@ import { GraphData, GraphEdge } from '@/lib/types';
 import { useGraphStore } from '@/store/graphStore';
 import { useCallback, useEffect, useState } from 'react';
 import { createGraph, getGraph, processText } from '../lib/api';
+import AskBox from './AskBox';
 import EdgeDetail from './EdgeDetail';
 import GraphDisplay from './GraphDisplay';
 import TextInput from './TextInput';
@@ -102,6 +103,16 @@ export default function Dashboard() {
     }
   };
 
+  const handleViewEdge = useCallback(
+    (edgeId: string) => {
+      const edge = graphData.edges.find((e) => e.id === edgeId);
+      if (!edge) return;
+      setSelectedEdge(edge);
+      setHighlightIds({ nodes: [], edges: [edgeId] });
+    },
+    [graphData.edges]
+  );
+
   return (
     <div className="flex flex-col h-full text-gray-100">
       <div className="relative flex-1 mb-4 overflow-hidden border border-white/10 rounded-xl shadow-inner bg-[#161616] min-h-[300px]">
@@ -144,6 +155,9 @@ export default function Dashboard() {
 
       <div className="p-3 bg-[#1a1a1a] border border-white/10 rounded-xl">
         <TextInput onSubmit={handleTextInput} disabled={isLoading} />
+        {currentGraphId && (
+          <AskBox graphId={currentGraphId} onViewEdge={handleViewEdge} disabled={isLoading} />
+        )}
       </div>
     </div>
   );

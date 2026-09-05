@@ -38,3 +38,6 @@ class RateLimiter:
 
 
 process_text_limiter = RateLimiter(settings.rate_limit_per_minute)
+# Separate instance from process_text_limiter: Q&A and extraction have
+# different cost/abuse profiles and may need independent tuning later.
+ask_limiter = RateLimiter(settings.ask_rate_limit_per_minute)

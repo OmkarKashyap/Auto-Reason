@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import Owner, get_current_owner, get_db_session
 from app.core.config import settings
-from app.core.rate_limit import process_text_limiter
+from app.core.rate_limit import ask_limiter, process_text_limiter
 from app.graph_manager.service import (
     create_graph,
     delete_graph,
@@ -14,7 +14,18 @@ from app.graph_manager.service import (
     merge_extraction_into_graph,
 )
 from app.llm.factory import get_llm_provider
-from app.schemas.graph import CreateGraphRequest, EdgeOut, GraphDetail, GraphSummary, NodeOut, ProcessTextRequest
+from app.rag.service import answer_question
+from app.schemas.graph import (
+    AskRequest,
+    AskResponse,
+    CitedClaimOut,
+    CreateGraphRequest,
+    EdgeOut,
+    GraphDetail,
+    GraphSummary,
+    NodeOut,
+    ProcessTextRequest,
+)
 
 router = APIRouter(prefix="/graphs", tags=["Graphs"])
 
@@ -34,6 +45,8 @@ def _to_detail(graph) -> GraphDetail:
                 evidence=e.evidence,
                 confidence=e.confidence,
                 source_label=e.source,
+                grounded=e.grounded,
+                groundedness_score=e.groundedness_score,
             )
             for e in graph.edges
         ],
@@ -98,5 +111,44 @@ async def process_text(
     provider = get_llm_provider()
     extraction = await provider.extract_graph(body.text)
 
-    graph = await merge_extraction_into_graph(session, graph, extraction)
+    graph = await merge_extraction_into_graph(session, graph, extraction, body.text)
     return _to_detail(graph)
+
+
+@router.post("/{graph_id}/ask", response_model=AskResponse)
+async def ask_graph(
+    graph_id: uuid.UUID,
+    body: AskRequest,
+    owner: Owner = Depends(get_current_owner),
+    session: AsyncSession = Depends(get_db_session),
+):
+    ask_limiter.check(key=f"{owner.type}:{owner.id}")
+
+    graph = await get_owned_graph(session, graph_id, owner.type, owner.id)
+
+    provider = get_llm_provider()
+    ask_answer = await answer_question(session, graph, body.question, provider)
+
+    edges_by_id = {e.id: e for e in graph.edges}
+    cited_edges = [
+        EdgeOut(
+            id=edge.id,
+            source=edge.source_node_id,
+            target=edge.target_node_id,
+            label=edge.label,
+            evidence=edge.evidence,
+            confidence=edge.confidence,
+            source_label=edge.source,
+            grounded=edge.grounded,
+            groundedness_score=edge.groundedness_score,
+        )
+        for edge_id in ask_answer.used_edge_ids
+        if (edge := edges_by_id.get(edge_id)) is not None
+    ]
+
+    return AskResponse(
+        answer=ask_answer.answer,
+        claims=[CitedClaimOut(claim=c.claim, edge_ids=c.edge_ids) for c in ask_answer.claims],
+        used_edge_ids=ask_answer.used_edge_ids,
+        cited_edges=cited_edges,
+    )

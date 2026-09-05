@@ -38,7 +38,15 @@ export default function EdgeDetail({ edge, nodes, onClose }: EdgeDetailProps) {
       </p>
 
       <div className="mb-2">
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Evidence</p>
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Evidence</p>
+          {edge.grounded === true && (
+            <span className="text-xs font-medium text-green-400">Grounded &#10003;</span>
+          )}
+          {edge.grounded === false && (
+            <span className="text-xs font-medium text-amber-400">Not grounded &#10007;</span>
+          )}
+        </div>
         <p className="text-sm italic text-gray-300">
           {edge.evidence ? `"${edge.evidence}"` : 'No evidence recorded for this relationship.'}
         </p>

@@ -1,3 +1,4 @@
+import uuid
 from abc import ABC, abstractmethod
 
 from pydantic import BaseModel, Field
@@ -43,10 +44,47 @@ class ExtractionResult(BaseModel):
     relationships: list[ExtractedRelationship]
 
 
+ANSWER_SYSTEM_PROMPT = (
+    "You answer questions about a knowledge graph extracted from user-submitted text. "
+    "You will be given a subgraph of relevant entities and relationships; each relationship "
+    "carries supporting evidence, a confidence score, and a unique id. "
+    "Answer the question using ONLY the information in the provided context - do not use "
+    "outside knowledge, and do not invent relationships that aren't in the context. "
+    "Break your answer into discrete claims; for every claim, cite the id(s) of the "
+    "relationship(s) in the context that support it. "
+    "If the context does not contain enough information to answer, say so plainly rather "
+    "than guessing."
+)
+
+
+class CitedClaim(BaseModel):
+    claim: str = Field(description="One factual claim made in the answer.")
+    edge_ids: list[uuid.UUID] = Field(
+        default_factory=list,
+        description="IDs of the relationship(s) in the context that support this claim.",
+    )
+
+
+class AskAnswer(BaseModel):
+    answer: str = Field(
+        description="A direct answer to the question, based only on the provided graph context."
+    )
+    claims: list[CitedClaim] = Field(default_factory=list)
+    used_edge_ids: list[uuid.UUID] = Field(
+        default_factory=list,
+        description="Flattened union of all edge_ids cited across claims.",
+    )
+
+
 class LLMProvider(ABC):
     """Provider abstraction so the backend isn't locked to one LLM vendor/model."""
 
     @abstractmethod
     async def extract_graph(self, text: str) -> ExtractionResult:
         """Extract a summary, entities, and relationships from free-form text."""
+        raise NotImplementedError
+
+    @abstractmethod
+    async def answer_question(self, question: str, context: str) -> AskAnswer:
+        """Answer a question using only the given graph context, citing edge ids."""
         raise NotImplementedError

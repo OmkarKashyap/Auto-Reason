@@ -15,6 +15,8 @@ export interface GraphEdge {
   evidence?: string | null;
   confidence?: number | null;
   source_label: string;
+  grounded?: boolean | null;
+  groundedness_score?: number | null;
 }
 
 export interface GraphData {
@@ -32,6 +34,18 @@ export interface GraphDetail extends GraphData {
   id: string;
   name: string;
   summary: string | null;
+}
+
+export interface CitedClaim {
+  claim: string;
+  edge_ids: string[];
+}
+
+export interface AskResponse {
+  answer: string;
+  claims: CitedClaim[];
+  used_edge_ids: string[];
+  cited_edges: GraphEdge[];
 }
 
 export interface ApiErrorResponse {

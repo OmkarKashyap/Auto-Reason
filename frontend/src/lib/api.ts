@@ -1,4 +1,4 @@
-import { GraphDetail, GraphSummary, Owner } from './types';
+import { AskResponse, GraphDetail, GraphSummary, Owner } from './types';
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
 
@@ -55,6 +55,13 @@ export function processText(graphId: string, text: string): Promise<GraphDetail>
   return apiFetch<GraphDetail>(`/api/graphs/${graphId}/process-text`, {
     method: 'POST',
     body: JSON.stringify({ text }),
+  });
+}
+
+export function askGraph(graphId: string, question: string): Promise<AskResponse> {
+  return apiFetch<AskResponse>(`/api/graphs/${graphId}/ask`, {
+    method: 'POST',
+    body: JSON.stringify({ question }),
   });
 }
 

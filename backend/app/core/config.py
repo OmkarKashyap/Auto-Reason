@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     )
 
     rate_limit_per_minute: int = Field(default=10, alias="RATE_LIMIT_PER_MINUTE")
+    ask_rate_limit_per_minute: int = Field(default=10, alias="ASK_RATE_LIMIT_PER_MINUTE")
     max_input_chars: int = Field(default=20000, alias="MAX_INPUT_CHARS")
 
     @property

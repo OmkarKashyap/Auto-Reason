@@ -3,7 +3,13 @@ import logging
 import anthropic
 
 from app.core.config import settings
-from app.llm.base import EXTRACTION_SYSTEM_PROMPT, ExtractionResult, LLMProvider
+from app.llm.base import (
+    ANSWER_SYSTEM_PROMPT,
+    EXTRACTION_SYSTEM_PROMPT,
+    AskAnswer,
+    ExtractionResult,
+    LLMProvider,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -38,5 +44,31 @@ class AnthropicProvider(LLMProvider):
 
         if response.parsed_output is None:
             raise RuntimeError("Anthropic response did not include a parsed extraction result.")
+
+        return response.parsed_output
+
+    async def answer_question(self, question: str, context: str) -> AskAnswer:
+        try:
+            response = await self._client.messages.parse(
+                model=self._model,
+                max_tokens=2048,
+                system=ANSWER_SYSTEM_PROMPT,
+                messages=[
+                    {"role": "user", "content": f"Graph context:\n{context}\n\nQuestion: {question}"}
+                ],
+                output_format=AskAnswer,
+            )
+        except anthropic.RateLimitError:
+            logger.warning("Anthropic rate limit hit during question answering.")
+            raise
+        except anthropic.APIStatusError:
+            logger.exception("Anthropic API error during question answering.")
+            raise
+        except anthropic.APIConnectionError:
+            logger.exception("Network error calling Anthropic during question answering.")
+            raise
+
+        if response.parsed_output is None:
+            raise RuntimeError("Anthropic response did not include a parsed answer.")
 
         return response.parsed_output

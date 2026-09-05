@@ -5,7 +5,13 @@ import groq
 from pydantic import ValidationError
 
 from app.core.config import settings
-from app.llm.base import EXTRACTION_SYSTEM_PROMPT, ExtractionResult, LLMProvider
+from app.llm.base import (
+    ANSWER_SYSTEM_PROMPT,
+    EXTRACTION_SYSTEM_PROMPT,
+    AskAnswer,
+    ExtractionResult,
+    LLMProvider,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -15,6 +21,13 @@ _JSON_FORMAT_INSTRUCTIONS = (
     '"entities": [{"name": "...", "description": "..." | null}], '
     '"relationships": [{"source": "...", "target": "...", "relation": "...", '
     '"evidence": "...", "confidence": 0.0-1.0}]}'
+)
+
+_ASK_JSON_FORMAT_INSTRUCTIONS = (
+    "Respond with a single JSON object and nothing else, matching this shape exactly: "
+    '{"answer": "...", '
+    '"claims": [{"claim": "...", "edge_ids": ["<uuid>", ...]}], '
+    '"used_edge_ids": ["<uuid>", ...]}'
 )
 
 
@@ -62,3 +75,40 @@ class GroqProvider(LLMProvider):
             raise RuntimeError(
                 "Groq response did not match the expected extraction schema."
             ) from exc
+
+    async def answer_question(self, question: str, context: str) -> AskAnswer:
+        try:
+            response = await self._client.chat.completions.create(
+                model=self._model,
+                max_tokens=2048,
+                response_format={"type": "json_object"},
+                messages=[
+                    {
+                        "role": "system",
+                        "content": f"{ANSWER_SYSTEM_PROMPT}\n\n{_ASK_JSON_FORMAT_INSTRUCTIONS}",
+                    },
+                    {
+                        "role": "user",
+                        "content": f"Graph context:\n{context}\n\nQuestion: {question}",
+                    },
+                ],
+            )
+        except groq.RateLimitError:
+            logger.warning("Groq rate limit hit during question answering.")
+            raise
+        except groq.APIStatusError:
+            logger.exception("Groq API error during question answering.")
+            raise
+        except groq.APIConnectionError:
+            logger.exception("Network error calling Groq during question answering.")
+            raise
+
+        content = response.choices[0].message.content
+        if not content:
+            raise RuntimeError("Groq response did not include any content.")
+
+        try:
+            return AskAnswer.model_validate(json.loads(content))
+        except (json.JSONDecodeError, ValidationError) as exc:
+            logger.exception("Groq response did not match the expected answer schema.")
+            raise RuntimeError("Groq response did not match the expected answer schema.") from exc
