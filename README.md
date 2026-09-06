@@ -17,54 +17,87 @@ Live at [auto-reason.vercel.app](https://auto-reason.vercel.app).
 
 ## Features
 
-**Text to graph extraction.** Submit any text and a pluggable LLM provider (Anthropic
+1. **Text to graph extraction.** Submit any text and a pluggable LLM provider (Anthropic
 or Groq) pulls out entities and relationships, each with a supporting evidence quote
 and a confidence score. Submitting more text later merges into the same graph instead
 of creating duplicates.
 
-**Groundedness verification.** The LLM claims every relationship is backed by a quote
+2. **Groundedness verification.** The LLM claims every relationship is backed by a quote
 from the source text, but nothing forces that to actually be true. `backend/app/groundedness/service.py`
 checks each evidence quote against the real submitted text (exact match first, fuzzy
 match as a fallback) before it's ever stored, and the result shows up as a "Grounded"
 or "Not grounded" badge in the graph UI. If a model hallucinates a quote, you'll see it.
 
-**GraphRAG-style Q&A.** Ask a question about a graph and get an answer that's actually
+3. **GraphRAG-style Q&A.** Ask a question about a graph and get an answer that's actually
 grounded in it, not just general model knowledge:
 
-1. The question gets embedded locally (a small `sentence-transformers` model, no API
-   call) and compared against every node's embedding to find the most relevant entities.
-2. The graph expands two hops out from those entities to build a relevant subgraph.
-3. That subgraph (entity labels, descriptions, relationships, evidence, confidence,
+   -  The question gets embedded locally (a small `sentence-transformers` model) and compared against every node's embedding to find the most relevant entities.
+   -  The graph expands two hops out from those entities to build a relevant subgraph.
+   -  That subgraph (entity labels, descriptions, relationships, evidence, confidence,
    groundedness) gets handed to the LLM with instructions to answer using only that
    context and cite the specific relationships behind each claim.
-4. The answer comes back with clickable citations that jump straight to the edge they
+   -  The answer comes back with clickable citations that jump straight to the edge they
    came from.
 
-**Extraction eval harness.** `backend/eval/` has a small hand-labeled golden dataset
+4. **Extraction eval harness.** `backend/eval/` has a small hand-labeled golden dataset
 and a script that scores entity and relationship extraction (precision, recall, F1)
 against whichever provider and model is configured:
 
-```bash
-cd backend
-python -m eval.run_extraction_eval
-```
+   ```bash
+   cd backend
+   python -m eval.run_extraction_eval
+   ```
 
-Here's what that looked like comparing a few Groq models on the same golden set:
+   Here's what that looked like comparing a few Groq models on the same golden set:
 
-| Model | Entity F1 | Relationship F1 |
-|---|---|---|
-| openai/gpt-oss-120b | 0.969 | 0.811 |
-| qwen/qwen3.8-27b | 0.954 | 0.776 |
-| qwen/qwen3.6-27b | 0.944 | 0.743 |
-| openai/gpt-oss-20b | 0.947 | 0.704 |
-| llama-3.1-8b-instant | 0.869 | 0.575 |
+   | Model | Entity F1 | Relationship F1 |
+   |---|---|---|
+   | openai/gpt-oss-120b | 0.969 | 0.811 |
+   | qwen/qwen3.8-27b | 0.954 | 0.776 |
+   | qwen/qwen3.6-27b | 0.944 | 0.743 |
+   | openai/gpt-oss-20b | 0.947 | 0.704 |
+   | llama-3.1-8b-instant | 0.869 | 0.575 |
 
-Bigger models score higher on both, and relationship extraction is consistently the
-harder half, which makes sense since it means getting two entities and the connection
-between them right at the same time, not just one entity.
+   Bigger models score higher on both, and relationship extraction is consistently the
+   harder half, which makes sense since it means getting two entities and the connection
+   between them right at the same time.
 
-The eval script makes real API calls, so it's not run in CI. It's a tool for checking
-whether a prompt change or a model swap actually helped, not a gate on every push.
+
+## Performance at scale.
+
+   `backend/eval/run_benchmark.py` measures how the extraction
+   and retrieval pipelines hold up as input size and graph size grow, using synthetic
+   graphs so most of it costs nothing to re-run:
+
+   ```bash
+   cd backend
+   python -m eval.run_benchmark
+   ```
+
+   Extraction latency across increasing input sizes (Groq `openai/gpt-oss-120b`):
+
+   | Input size | Latency | Entities / Relationships |
+   |---|---|---|
+   | short (100 chars) | 2.31s | 6 / 4 |
+   | medium (1,000 chars) | 7.24s | 39 / 29 |
+   | long (19,500 chars, near the 20K input cap) | 13.31s | 36 / 26 |
+
+   Graph retrieval latency across increasing entity counts, using local CPU embeddings
+   (zero API cost), with the app's real production settings (top 5 seed entities, 2 hops
+   out, capped at 40 entities / 80 relationships per answer):
+
+   | Entities | Relationships | Embedding time | Retrieval time | Subgraph returned |
+   |---|---|---|---|---|
+   | 50 | 102 | 102ms (2.05ms/entity) | 8.6ms | 37 entities, 61 relationships |
+   | 200 | 410 | 355ms (1.78ms/entity) | 25.7ms | 40 entities, 72 relationships |
+   | 1,000 | 2,050 | 1.76s (1.76ms/entity) | 126ms | 40 entities, 67 relationships |
+
+   Groundedness verification adds only about 0.06ms per relationship checked.
+
+   Both embedding and retrieval scale close to linearly with the number of entities, rather than quadratically. Embeddings run each entity’s label through the model once, while retrieval scans and sorts the entities, then follows their relationships for two hops. The relationships touched grow with the graph but are capped by the production limit. Going from 200 to 1,000 entities (5× more) took about 4.9× longer, which is close enough to linear that the difference is just normal measurement noise.
+
+   A few things keep this fast without special tuning. The LLM client and app settings are created once per process and reused with @lru_cache. The embedding model is loaded once and warmed up at startup, avoiding the 30–40 second first-request cost of importing torch and loading the model. Entity embeddings are computed once and stored in Postgres, so later questions can reuse them instead of recomputing them.
+
 
 ## Tech stack
 
@@ -243,15 +276,11 @@ container on every push and PR touching `backend/**`.
 Frontend and backend run on different domains in production, so a couple of things
 matter if you're touching auth or deployment config:
 
-- `CORS_ORIGINS` on Render has to list the exact Vercel origin. No default will match it.
+- `CORS_ORIGINS` on Render has to list the exact Vercel origin
 - The session cookie is `SameSite=None; Secure` in production, which requires
   `ENV=production` to be set on Render. Otherwise the cookie won't survive the
   cross-site request.
-- `NEXT_PUBLIC_API_BASE_URL` is baked into the Next.js build at build time, not read at
-  runtime. Changing it in Vercel's dashboard requires a redeploy to take effect.
 
-None of this lives in a `render.yaml` or `vercel.json`. It's all set directly in each
-platform's dashboard.
 
 ## Project structure
 
