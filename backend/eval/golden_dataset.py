@@ -1,18 +1,4 @@
-"""Golden dataset for evaluating extraction quality.
-
-Each example pairs a short input text with the entities and relationships a
-correct extraction should produce. Entity names and relationship endpoints are
-matched via app.graph_manager.service.normalize_label in run_extraction_eval.py
-- the same normalization the app itself uses to decide whether two extractions
-refer to "the same entity" - so scoring reflects what the app would actually
-do post-merge, not an arbitrary stricter/looser standard.
-
-Covers: a simple single-relationship snippet, multi-entity/multi-relationship
-snippets, snippets with pronoun coreference (the model must resolve "it"/"his"
-back to the right entity), and two deliberately vague/low-content snippets
-that should yield nothing per EXTRACTION_SYSTEM_PROMPT's instruction to return
-an empty graph rather than invent content.
-"""
+"""Golden dataset for evaluating extraction quality."""
 from dataclasses import dataclass
 
 
@@ -29,7 +15,10 @@ GOLDEN_DATASET: list[GoldenExample] = [
         name="simple_single_relationship",
         text="Photosynthesis converts sunlight into chemical energy stored in glucose.",
         expected_entities=["Photosynthesis", "Sunlight", "Chemical energy", "Glucose"],
-        expected_relationships=[("Photosynthesis", "converts", "Sunlight")],
+        expected_relationships=[
+            ("Photosynthesis", "converts", "Chemical energy"),
+            ("Chemical energy", "stored in", "Glucose"),
+        ],
     ),
     GoldenExample(
         name="multi_entity_achievements",
@@ -57,10 +46,12 @@ GOLDEN_DATASET: list[GoldenExample] = [
             "The mitochondria is the powerhouse of the cell. It produces ATP "
             "through cellular respiration."
         ),
-        expected_entities=["Mitochondria", "ATP", "Cellular respiration"],
+        expected_entities=["Mitochondria", "Cell", "ATP", "Cellular respiration"],
         expected_relationships=[
+            ("Mitochondria", "is the powerhouse of", "Cell"),
             ("Mitochondria", "produces", "ATP"),
             ("Mitochondria", "performs", "Cellular respiration"),
+            ("ATP", "produced through", "Cellular respiration"),
         ],
     ),
     GoldenExample(
@@ -72,10 +63,10 @@ GOLDEN_DATASET: list[GoldenExample] = [
     GoldenExample(
         name="causal_chain_climate",
         text="Deforestation increases atmospheric CO2 levels, which causes global warming.",
-        expected_entities=["Deforestation", "Atmospheric CO2", "Global warming"],
+        expected_entities=["Deforestation", "Atmospheric CO2 levels", "Global warming"],
         expected_relationships=[
-            ("Deforestation", "increases", "Atmospheric CO2"),
-            ("Atmospheric CO2", "causes", "Global warming"),
+            ("Deforestation", "increases", "Atmospheric CO2 levels"),
+            ("Atmospheric CO2 levels", "causes", "Global warming"),
         ],
     ),
     GoldenExample(
@@ -99,6 +90,7 @@ GOLDEN_DATASET: list[GoldenExample] = [
         expected_entities=["World War II", "Germany", "Poland", "Japan"],
         expected_relationships=[
             ("Germany", "invaded", "Poland"),
+            ("World War II", "ended with", "Japan"),
         ],
     ),
     GoldenExample(
@@ -116,10 +108,10 @@ GOLDEN_DATASET: list[GoldenExample] = [
     GoldenExample(
         name="health_exercise",
         text="Regular exercise reduces the risk of heart disease and improves mental health.",
-        expected_entities=["Exercise", "Heart disease", "Mental health"],
+        expected_entities=["Regular exercise", "Heart disease", "Mental health"],
         expected_relationships=[
-            ("Exercise", "reduces", "Heart disease"),
-            ("Exercise", "improves", "Mental health"),
+            ("Regular exercise", "reduces", "Heart disease"),
+            ("Regular exercise", "improves", "Mental health"),
         ],
     ),
     GoldenExample(
@@ -128,9 +120,10 @@ GOLDEN_DATASET: list[GoldenExample] = [
             "The Amazon River flows through Brazil and is the largest river by "
             "discharge volume in the world."
         ),
-        expected_entities=["Amazon River", "Brazil"],
+        expected_entities=["Amazon River", "Brazil", "World"],
         expected_relationships=[
             ("Amazon River", "flows through", "Brazil"),
+            ("Amazon River", "is the largest river by discharge volume in", "World"),
         ],
     ),
     GoldenExample(

@@ -29,8 +29,6 @@ def test_fabricated_quote_is_not_grounded():
 
 
 def test_close_paraphrase_above_threshold_is_grounded():
-    # Minor rewording/typo of a real substring should still clear a lenient
-    # fuzzy-match threshold without requiring an exact match.
     grounded, score = check_groundedness(
         "mitochondria is powerhouse of cell",
         "The mitochondria is the powerhouse of the cell.",

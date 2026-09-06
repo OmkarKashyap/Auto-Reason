@@ -1,50 +1,92 @@
 # Auto-Reason
 
-Turn free-form text into an interactive knowledge graph. Paste in a paragraph — an
-article, a set of notes, a document — and an LLM pulls out a summary, entities, and
-relationships, which get merged into a graph you can keep adding to and explore visually.
+Auto-Reason turns free-form text into a visual knowledge graph, basically a map of
+ideas showing how things connect, instead of just a block of text you have to reread
+to remember how everything fits together. Paste in a paragraph or an article or a set of
+notes and an LLM reads it, picks out the important entities and figures out how they relate to
+each other. Those get added to a graph you can
+keep building on over time, and you can click around it visually to see how everything
+connects.
+
+You can also ask the graph questions in plain English, like "how are X and Y related",
+and get back an answer that's backed by the actual evidence in your own text, with
+links straight to the specific facts it used, instead of the model just answering from
+general knowledge it already had.
 
 Live at [auto-reason.vercel.app](https://auto-reason.vercel.app).
 
-## Stack
+## Features
+
+**Text to graph extraction.** Submit any text and a pluggable LLM provider (Anthropic
+or Groq) pulls out entities and relationships, each with a supporting evidence quote
+and a confidence score. Submitting more text later merges into the same graph instead
+of creating duplicates.
+
+**Groundedness verification.** The LLM claims every relationship is backed by a quote
+from the source text, but nothing forces that to actually be true. `backend/app/groundedness/service.py`
+checks each evidence quote against the real submitted text (exact match first, fuzzy
+match as a fallback) before it's ever stored, and the result shows up as a "Grounded"
+or "Not grounded" badge in the graph UI. If a model hallucinates a quote, you'll see it.
+
+**GraphRAG-style Q&A.** Ask a question about a graph and get an answer that's actually
+grounded in it, not just general model knowledge:
+
+1. The question gets embedded locally (a small `sentence-transformers` model, no API
+   call) and compared against every node's embedding to find the most relevant entities.
+2. The graph expands two hops out from those entities to build a relevant subgraph.
+3. That subgraph (entity labels, descriptions, relationships, evidence, confidence,
+   groundedness) gets handed to the LLM with instructions to answer using only that
+   context and cite the specific relationships behind each claim.
+4. The answer comes back with clickable citations that jump straight to the edge they
+   came from.
+
+**Extraction eval harness.** `backend/eval/` has a small hand-labeled golden dataset
+and a script that scores entity and relationship extraction (precision, recall, F1)
+against whichever provider and model is configured:
+
+```bash
+cd backend
+python -m eval.run_extraction_eval
+```
+
+Here's what that looked like comparing a few Groq models on the same golden set:
+
+| Model | Entity F1 | Relationship F1 |
+|---|---|---|
+| openai/gpt-oss-120b | 0.969 | 0.811 |
+| qwen/qwen3.8-27b | 0.954 | 0.776 |
+| qwen/qwen3.6-27b | 0.944 | 0.743 |
+| openai/gpt-oss-20b | 0.947 | 0.704 |
+| llama-3.1-8b-instant | 0.869 | 0.575 |
+
+Bigger models score higher on both, and relationship extraction is consistently the
+harder half, which makes sense since it means getting two entities and the connection
+between them right at the same time, not just one entity.
+
+The eval script makes real API calls, so it's not run in CI. It's a tool for checking
+whether a prompt change or a model swap actually helped, not a gate on every push.
+
+## Tech stack
 
 | Layer | Tech |
 |---|---|
 | Frontend | Next.js 16 (App Router), React 19, Tailwind CSS 4, Cytoscape.js for graph rendering, Zustand for state |
 | Backend | FastAPI (async), SQLAlchemy 2 (async) + asyncpg, Alembic migrations |
 | Database | PostgreSQL 16 |
-| LLM extraction | Pluggable provider - Groq or Anthropic (Claude), selected via `LLM_PROVIDER` |
-| Retrieval | Local embeddings (`sentence-transformers`, `all-MiniLM-L6-v2`) for GraphRAG-style Q&A - no external API, runs on CPU |
+| LLM extraction | Pluggable provider, Groq or Anthropic (Claude), selected via `LLM_PROVIDER` |
+| Retrieval | Local embeddings (`sentence-transformers`, `all-MiniLM-L6-v2`) for GraphRAG Q&A, no external API, runs on CPU |
 | Auth | Signed session cookie. Anonymous by default; email/password accounts upgrade the anonymous session's graphs on sign-up |
 
-## Hosting
-
-- **Neon** — Postgres
-- **Render** — backend (FastAPI, Docker)
-- **Vercel** — frontend (Next.js)
-
-Frontend and backend run on different domains in production, so a couple of things
-matter if you're touching auth or deployment config:
-
-- `CORS_ORIGINS` on Render has to list the exact Vercel origin (no default will match it).
-- The session cookie is `SameSite=None; Secure` in production, which requires `ENV=production`
-  to be set on Render — otherwise the cookie won't survive the cross-site request.
-- `NEXT_PUBLIC_API_BASE_URL` is baked into the Next.js build at build time, not read at
-  runtime — changing it in Vercel's dashboard requires a redeploy to take effect.
-
-None of this lives in a `render.yaml` or `vercel.json`, but it's all set directly in each
-platform's dashboard.
-
-## Running locally
+## Getting started
 
 ### Prerequisites
 
-- [Docker](https://docs.docker.com/get-docker/) and Docker Compose — the supported way to run the whole stack
+- [Docker](https://docs.docker.com/get-docker/) and Docker Compose, the supported way to run the whole stack
 - An API key for at least one LLM provider:
   - [Anthropic](https://console.anthropic.com) (`ANTHROPIC_API_KEY`), or
   - [Groq](https://console.groq.com/keys) (`GROQ_API_KEY`)
 
-Running frontend/backend outside Docker is also fine (see [below](#running-without-docker)),
+Running frontend/backend outside Docker works too (see [below](#running-without-docker)),
 and additionally requires Node.js 20+, Python 3.12+, and a local PostgreSQL 16 instance.
 
 ### Quick start (Docker Compose)
@@ -56,7 +98,7 @@ and additionally requires Node.js 20+, Python 3.12+, and a local PostgreSQL 16 i
    ```
 
 2. In `.env`, set `POSTGRES_PASSWORD` and `SECRET_KEY` to real values, and configure at
-   least one LLM provider — see [Configuring the LLM provider](#configuring-the-llm-provider).
+   least one LLM provider, see [Configuring the LLM provider](#configuring-the-llm-provider).
 
 3. Build and start everything (frontend, backend, Postgres):
 
@@ -70,7 +112,7 @@ and additionally requires Node.js 20+, Python 3.12+, and a local PostgreSQL 16 i
    - Health check: http://localhost:8000/health
 
 Database tables are created automatically on backend startup via Alembic migrations
-(see `backend/entrypoint.sh`) — no manual migration step needed.
+(see `backend/entrypoint.sh`), no manual migration step needed.
 
 To stop everything: `docker compose down` (add `-v` to also drop the Postgres volume).
 
@@ -87,10 +129,10 @@ ANTHROPIC_API_KEY=add-anthropic-key-here
 ANTHROPIC_MODEL=add-any-anthropic-model-here  # any Claude model id
 ```
 
-Get a key from [console.anthropic.com](https://console.anthropic.com) → Settings → API Keys.
-Create it scoped to a specific **workspace**, not an identity-linked/all-workspaces key —
-identity-linked keys need extra config this app doesn't send and will fail with a 400
-`anthropic-workspace-id is required` error.
+Get a key from [console.anthropic.com](https://console.anthropic.com), under Settings,
+API Keys. Create it scoped to a specific **workspace**, not an identity-linked or
+all-workspaces key. Identity-linked keys need extra config this app doesn't send and
+will fail with a 400 `anthropic-workspace-id is required` error.
 
 **Groq** (`LLM_PROVIDER=groq`)
 
@@ -100,7 +142,9 @@ GROQ_API_KEY=add-groq-key-here
 GROQ_MODEL=add-any-groq-model-here # any Groq-hosted model id
 ```
 
-Get a free key from [console.groq.com/keys](https://console.groq.com/keys).
+Get a free key from [console.groq.com/keys](https://console.groq.com/keys). Different
+Groq models have very different rate limits on the free tier. If you hit a
+`RateLimitError`, try a more mainstream model like `llama-3.3-70b-versatile`.
 
 You only need a key for whichever provider `LLM_PROVIDER` points at.
 
@@ -116,14 +160,14 @@ Three separate env files, one per runtime context:
 
 | Variable | Purpose | Default |
 |---|---|---|
-| `ENV` | `development` or `production` — controls cookie `SameSite`/`Secure` flags | `development` |
+| `ENV` | `development` or `production`, controls cookie `SameSite`/`Secure` flags | `development` |
 | `DATABASE_URL` | Postgres connection string used by the backend | `postgresql+asyncpg://postgres:postgres@localhost:5432/auto_reason` |
-| `POSTGRES_PASSWORD` | Password for the Postgres container | — (required) |
+| `POSTGRES_PASSWORD` | Password for the Postgres container | (required) |
 | `LLM_PROVIDER` | `anthropic` or `groq` | `anthropic` |
-| `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL` | Anthropic provider config | — |
+| `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL` | Anthropic provider config | |
 | `GROQ_API_KEY` / `GROQ_MODEL` | Groq provider config | model defaults to `llama-3.3-70b-versatile` |
 | `CORS_ORIGINS` | Comma-separated allowed frontend origin(s) | `http://localhost:3000` |
-| `SECRET_KEY` | Signs the session cookie — set to a long random value | — (required) |
+| `SECRET_KEY` | Signs the session cookie, set to a long random value | (required) |
 | `RATE_LIMIT_PER_MINUTE` | Per-owner rate limit on `/process-text` | `10` |
 | `ASK_RATE_LIMIT_PER_MINUTE` | Per-owner rate limit on `/ask` | `10` |
 | `MAX_INPUT_CHARS` | Max characters accepted per text submission | `20000` |
@@ -157,10 +201,10 @@ npm install
 npm run dev
 ```
 
-## API overview
+## API reference
 
 All endpoints are prefixed with `/api`. Caller identity (`Owner`) is resolved from a
-signed, `httponly` session cookie — issued anonymously on first visit, and upgraded to
+signed, `httponly` session cookie, issued anonymously on first visit and upgraded to
 an account when you register or log in. Full interactive docs at `/docs`.
 
 | Method | Path | Description |
@@ -174,49 +218,7 @@ an account when you register or log in. Full interactive docs at `/docs`.
 | `GET` | `/api/graphs/{graph_id}` | Get a graph's nodes and edges |
 | `DELETE` | `/api/graphs/{graph_id}` | Delete a graph |
 | `POST` | `/api/graphs/{graph_id}/process-text` | Extract entities/relationships from submitted text and merge them into the graph |
-| `POST` | `/api/graphs/{graph_id}/ask` | Ask a natural-language question about the graph; answer is grounded in the graph's own evidence, with per-claim citations to specific edges |
-
-## Groundedness, evaluation, and GraphRAG Q&A
-
-Three things exist to make extraction quality checkable rather than just trusted:
-
-**Groundedness verification** — every extracted relationship comes with an `evidence` quote
-the LLM claims is drawn from the source text. `backend/app/groundedness/service.py` checks
-that quote against the actual submitted text (exact match, falling back to fuzzy matching via
-`rapidfuzz`) at extraction time, before the edge is ever stored. The result is saved as
-`grounded` (bool) and `groundedness_score` (0.0-1.0) on the edge and shown as a badge in the
-dashboard's edge detail panel - so a fabricated or hallucinated quote is visibly flagged
-rather than silently trusted.
-
-**Extraction eval harness** — `backend/eval/` holds a small hand-labeled golden dataset
-(`golden_dataset.py`) and a runnable scorer (`run_extraction_eval.py`) that computes
-precision/recall/F1 for entity and relationship extraction against whichever provider/model
-is configured. Run it manually after changing the extraction prompt or switching models:
-
-```bash
-cd backend
-python -m eval.run_extraction_eval
-```
-
-It makes real LLM calls (so it costs API credits) and isn't run in CI - it exists to guide
-manual prompt/model iteration, not to gate every push.
-
-**GraphRAG-style Q&A** — the "Ask" box in the dashboard lets you ask a question about a graph
-and get an answer grounded in its own evidence, not general model knowledge:
-
-1. The question is embedded locally (no API call) and compared via cosine similarity against
-   every node's embedding to find the most relevant seed nodes (`backend/app/rag/retrieval.py`).
-2. The graph is expanded 2 hops out from those seeds (capped at 40 nodes / 80 edges) to build a
-   relevant subgraph.
-3. That subgraph - entity labels/descriptions plus each edge's label, confidence, groundedness,
-   evidence, and id - is handed to the same LLM provider/model used for extraction, with
-   instructions to answer using only that context and cite the specific edge id(s) behind each
-   claim (`backend/app/rag/service.py`).
-4. The dashboard renders the answer with clickable citations that jump straight to the cited
-   edge in the graph view, reusing the existing edge-selection/highlight mechanism.
-
-Node embeddings are computed lazily and cached on first use per graph (`Node.embedding`), so
-older graphs work with no separate backfill step.
+| `POST` | `/api/graphs/{graph_id}/ask` | Ask a question about the graph and get a grounded, cited answer |
 
 ## Testing
 
@@ -225,12 +227,31 @@ cd backend
 pytest
 ```
 
-Needs a Postgres reachable via `DATABASE_URL` with migrations applied (`alembic upgrade head`) -
-the schema uses Postgres-specific types (`UUID`, `ARRAY`), so this isn't SQLite-compatible.
-`backend/tests/` covers the groundedness matcher and RAG retrieval/traversal logic as pure unit
+Needs a Postgres reachable via `DATABASE_URL` with migrations applied (`alembic upgrade head`).
+The schema uses Postgres-specific types (`UUID`, `ARRAY`), so this isn't SQLite-compatible.
+The suite covers the groundedness matcher and RAG retrieval/traversal logic as pure unit
 tests (no DB needed), plus graph merge/dedup behavior against a real database. CI
 (`.github/workflows/backend-tests.yml`) runs the same suite against a Postgres service
-container on every push/PR touching `backend/**`.
+container on every push and PR touching `backend/**`.
+
+## Hosting
+
+- **Neon**, Postgres
+- **Render**, backend (FastAPI, Docker)
+- **Vercel**, frontend (Next.js)
+
+Frontend and backend run on different domains in production, so a couple of things
+matter if you're touching auth or deployment config:
+
+- `CORS_ORIGINS` on Render has to list the exact Vercel origin. No default will match it.
+- The session cookie is `SameSite=None; Secure` in production, which requires
+  `ENV=production` to be set on Render. Otherwise the cookie won't survive the
+  cross-site request.
+- `NEXT_PUBLIC_API_BASE_URL` is baked into the Next.js build at build time, not read at
+  runtime. Changing it in Vercel's dashboard requires a redeploy to take effect.
+
+None of this lives in a `render.yaml` or `vercel.json`. It's all set directly in each
+platform's dashboard.
 
 ## Project structure
 
@@ -243,14 +264,14 @@ Auto-Reason/
 │   │   │   └── dependencies.py  # owner resolution from the session cookie, DB session
 │   │   ├── core/                # config.py (Settings), rate_limit.py
 │   │   ├── db/                  # models.py (SQLAlchemy), session.py
-│   │   ├── graph_manager/       # service.py — graph create/merge/delete logic
-│   │   ├── groundedness/        # service.py — evidence-quote verification against source text
+│   │   ├── graph_manager/       # service.py, graph create/merge/delete logic
+│   │   ├── groundedness/        # service.py, evidence-quote verification against source text
 │   │   ├── llm/                 # base.py, factory.py, anthropic_provider.py, groq_provider.py
-│   │   ├── rag/                 # embeddings.py, retrieval.py, service.py — GraphRAG Q&A
+│   │   ├── rag/                 # embeddings.py, retrieval.py, service.py, GraphRAG Q&A
 │   │   ├── schemas/             # Pydantic request/response models
 │   │   └── main.py
 │   ├── alembic/                 # DB migrations
-│   ├── eval/                    # golden_dataset.py, run_extraction_eval.py — extraction eval harness
+│   ├── eval/                    # golden_dataset.py, run_extraction_eval.py, extraction eval harness
 │   ├── tests/                   # pytest suite
 │   ├── Dockerfile
 │   ├── entrypoint.sh            # runs `alembic upgrade head` then starts uvicorn
@@ -263,7 +284,7 @@ Auto-Reason/
 │   │   ├── lib/                 # api.ts (backend client), types.ts
 │   │   └── store/                # graphStore.ts, authStore.ts (Zustand)
 │   └── Dockerfile
-├── .github/workflows/            # backend-tests.yml — CI (pytest against a Postgres service container)
+├── .github/workflows/            # backend-tests.yml, CI (pytest against a Postgres service container)
 ├── docker-compose.yml
 ├── .env.example
 └── README.md

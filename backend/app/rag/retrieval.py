@@ -1,9 +1,3 @@
-"""Pure graph-traversal/similarity logic for GraphRAG-style retrieval.
-
-No DB or LLM I/O in this module by design - it operates on already-loaded
-Node/Edge instances, which makes it directly unit-testable against hand-built
-in-memory objects with no fixtures or mocking required.
-"""
 from app.db.models import Edge, Node
 
 DEFAULT_TOP_K = 5
@@ -30,7 +24,7 @@ def select_seed_nodes(
     top_k: int = DEFAULT_TOP_K,
     min_similarity: float = DEFAULT_MIN_SIMILARITY,
 ) -> list[Node]:
-    """Top-K nodes by cosine similarity to the question, above a similarity floor."""
+    """Returns the top-K nodes by cosine similarity to the question."""
     scored = [
         (cosine_similarity(question_embedding, node.embedding), node)
         for node in nodes
@@ -49,8 +43,7 @@ def expand_subgraph(
     max_nodes: int = DEFAULT_MAX_NODES,
     max_edges: int = DEFAULT_MAX_EDGES,
 ) -> tuple[list[Node], list[Edge]]:
-    """Breadth-first expansion from the seed nodes along edges (either direction),
-    capped so a densely-connected graph can't blow up the LLM context."""
+    """Breadth-first expansion from the seed nodes along edges in either direction."""
     nodes_by_id = {node.id: node for node in all_nodes}
     touched_node_ids = {node.id for node in seed_nodes}
     frontier = set(touched_node_ids)
@@ -77,8 +70,7 @@ def expand_subgraph(
 
 
 def assemble_context(nodes: list[Node], edges: list[Edge]) -> str:
-    """Renders a subgraph as compact text for the LLM prompt, including each
-    edge's id so the model can cite specific relationships in its answer."""
+    """Renders a subgraph as compact text for the LLM prompt."""
     nodes_by_id = {node.id: node for node in nodes}
     lines = ["Entities:"]
     for node in nodes:

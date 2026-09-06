@@ -1,7 +1,3 @@
-"""Orchestrates GraphRAG-style Q&A: embed the question, retrieve a relevant
-subgraph via seed-node similarity + multi-hop expansion, and ask the LLM to
-answer using only that subgraph, citing the edges it relied on.
-"""
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,9 +10,7 @@ NO_CONTEXT_ANSWER = "I don't have enough information in this graph to answer tha
 
 
 async def ensure_node_embeddings(session: AsyncSession, graph: Graph) -> list[Node]:
-    """Lazily backfills embeddings for any Node missing one, so graphs created
-    before this feature existed work on first /ask with no separate backfill
-    migration or script."""
+    """Lazily backfills embeddings for any Node missing one."""
     result = await session.execute(select(Node).where(Node.graph_id == graph.id))
     nodes = list(result.scalars().all())
 

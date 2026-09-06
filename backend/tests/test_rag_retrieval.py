@@ -109,7 +109,7 @@ def test_expand_subgraph_respects_max_nodes_cap():
 
 def test_expand_subgraph_traverses_edges_in_either_direction():
     a, b = _node("A"), _node("B")
-    edge_ba = _edge(b, a, "connects")  # edge points target->A, seeded from A
+    edge_ba = _edge(b, a, "connects")
 
     nodes, edges = expand_subgraph([a], [a, b], [edge_ba], hops=1)
 
@@ -136,7 +136,6 @@ def test_assemble_context_skips_edges_with_missing_endpoints():
     dangling_target = _node("Dangling")
     edge = _edge(a, dangling_target, "connects")
 
-    # dangling_target intentionally excluded from the nodes list
     context = assemble_context([a], [edge])
 
     assert f"id={edge.id}" not in context

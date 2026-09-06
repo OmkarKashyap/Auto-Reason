@@ -60,8 +60,6 @@ class Node(Base):
     label: Mapped[str] = mapped_column(String, nullable=False)
     normalized_label: Mapped[str] = mapped_column(String, nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
-    # Local sentence-transformers embedding, backfilled lazily on first /ask
-    # call rather than at extraction time - most graphs are never queried.
     embedding: Mapped[list[float] | None] = mapped_column(ARRAY(Float), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
 
@@ -83,7 +81,6 @@ class Edge(Base):
     evidence: Mapped[str | None] = mapped_column(Text, nullable=True)
     confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     source: Mapped[str] = mapped_column(String, nullable=False, default="user-provided text", server_default="user-provided text")
-    # Nullable so pre-migration rows read as "not checked" rather than false.
     grounded: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     groundedness_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)

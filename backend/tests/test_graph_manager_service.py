@@ -45,7 +45,6 @@ async def test_merge_deduplicates_entities_via_normalized_label(db_session):
     )
     await merge_extraction_into_graph(db_session, graph, first, "Marie Curie discovered radium.")
 
-    # Second extraction refers to the same entity with different casing/whitespace.
     second = ExtractionResult(
         summary="marie curie also discovered polonium.",
         entities=[ExtractedEntity(name="  MARIE CURIE  "), ExtractedEntity(name="Polonium")],
@@ -62,7 +61,7 @@ async def test_merge_deduplicates_entities_via_normalized_label(db_session):
 
     node_labels = {n.normalized_label for n in result.nodes}
     assert node_labels == {"marie curie", "radium", "polonium"}
-    assert len(result.nodes) == 3  # not 4 - "Marie Curie" merged with "MARIE CURIE"
+    assert len(result.nodes) == 3
     assert len(result.edges) == 2
 
 

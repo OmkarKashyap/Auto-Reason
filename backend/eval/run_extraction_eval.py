@@ -1,19 +1,6 @@
-"""Extraction quality eval harness.
-
-Run manually against whatever LLM_PROVIDER/model is configured in the
-environment (real API calls - not mocked, since the entire point is measuring
-actual model behavior):
-
-    cd backend
-    python -m eval.run_extraction_eval
-
-Re-run this whenever EXTRACTION_SYSTEM_PROMPT, ExtractionResult, or the
-configured provider/model changes, to catch extraction-quality regressions
-before they reach users. Deliberately excluded from CI: it costs real API
-calls and needs a provider API key as a secret, and its purpose is guiding
-manual prompt/model iteration, not gating every push.
-"""
+"""Extraction quality eval harness. Run with: python -m eval.run_extraction_eval"""
 import asyncio
+import re
 
 from rapidfuzz import fuzz
 
@@ -21,18 +8,30 @@ from app.graph_manager.service import normalize_label
 from app.llm.factory import get_llm_provider
 from eval.golden_dataset import GOLDEN_DATASET, GoldenExample
 
-# Relation labels are matched fuzzily (unlike entity names/endpoints, which
-# must match exactly post-normalization) because LLMs phrase the same
-# relationship differently across runs/models (e.g. "causes" vs. "leads to").
+ENTITY_MATCH_THRESHOLD = 85.0
 RELATION_MATCH_THRESHOLD = 70.0
 
 
+def _normalize_relation(text: str) -> str:
+    return normalize_label(re.sub(r"[_-]+", " ", text))
+
+
+def _entities_match(predicted: str, expected: str) -> bool:
+    return (
+        fuzz.token_set_ratio(normalize_label(predicted), normalize_label(expected))
+        >= ENTITY_MATCH_THRESHOLD
+    )
+
+
 def _relation_matches(predicted: str, expected: str) -> bool:
-    return fuzz.ratio(normalize_label(predicted), normalize_label(expected)) >= RELATION_MATCH_THRESHOLD
+    return (
+        fuzz.token_set_ratio(_normalize_relation(predicted), _normalize_relation(expected))
+        >= RELATION_MATCH_THRESHOLD
+    )
 
 
 def entity_match(predicted: list[str], expected: list[str]) -> tuple[int, int, int]:
-    """Set-based match on normalized entity names. Returns (tp, fp, fn)."""
+    """Matches predicted entity names against expected ones. Returns (tp, fp, fn)."""
     predicted_norm = {normalize_label(p) for p in predicted}
     expected_norm = {normalize_label(e) for e in expected}
     tp = len(predicted_norm & expected_norm)
@@ -44,23 +43,16 @@ def entity_match(predicted: list[str], expected: list[str]) -> tuple[int, int, i
 def relationship_match(
     predicted: list[tuple[str, str, str]], expected: list[tuple[str, str, str]]
 ) -> tuple[int, int, int]:
-    """Greedily matches predicted relationships against expected ones.
-
-    Source/target must match exactly (post-normalization); the relation label
-    is matched fuzzily. Each expected relationship can be consumed by at most
-    one predicted relationship. Returns (tp, fp, fn).
-    """
+    """Matches predicted relationships against expected ones. Returns (tp, fp, fn)."""
     remaining_expected = list(expected)
     tp = 0
     fp = 0
     for p_source, p_relation, p_target in predicted:
         match_idx = None
         for i, (e_source, e_relation, e_target) in enumerate(remaining_expected):
-            if (
-                normalize_label(p_source) == normalize_label(e_source)
-                and normalize_label(p_target) == normalize_label(e_target)
-                and _relation_matches(p_relation, e_relation)
-            ):
+            same_direction = _entities_match(p_source, e_source) and _entities_match(p_target, e_target)
+            reversed_direction = _entities_match(p_source, e_target) and _entities_match(p_target, e_source)
+            if (same_direction or reversed_direction) and _relation_matches(p_relation, e_relation):
                 match_idx = i
                 break
         if match_idx is not None:

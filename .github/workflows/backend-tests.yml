@@ -50,7 +50,3 @@ jobs:
       - name: Run tests
         working-directory: backend
         run: pytest
-
-# Deliberately does not run eval/run_extraction_eval.py: that script makes
-# real LLM API calls (costs money, needs a provider API key as a secret) and
-# exists to guide manual prompt/model iteration, not to gate every push.

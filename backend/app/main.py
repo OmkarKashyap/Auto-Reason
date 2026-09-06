@@ -15,10 +15,7 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Load the embedding model now, during boot, instead of lazily on the
-    # first /ask request - that first request could otherwise take long
-    # enough (importing torch/sentence-transformers + loading the model) to
-    # exceed a proxy's request timeout and fail outright.
+    """Preloads the embedding model at startup instead of on the first /ask request."""
     logger.info("Preloading embedding model...")
     await asyncio.to_thread(preload_model)
     logger.info("Embedding model ready.")
